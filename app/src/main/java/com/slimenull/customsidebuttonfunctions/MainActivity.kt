@@ -1219,6 +1219,12 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
                             SideKeyCombinationPicker("侧键+电源键", settings.sidePowerAction) {
                                 persist(settings.copy(sidePowerAction = it))
                             }
+                            HorizontalDivider(color = Color(0xFFEAF0F7))
+                            SettingSwitchRow(
+                                title = "震动反馈",
+                                description = "组合键触发时振动一次",
+                                checked = settings.combinationVibrationEnabled
+                            ) { persist(settings.copy(combinationVibrationEnabled = it)) }
                         }
                     }
                 }

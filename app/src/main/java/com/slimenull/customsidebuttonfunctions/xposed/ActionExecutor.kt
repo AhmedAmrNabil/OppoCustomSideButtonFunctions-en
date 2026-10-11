@@ -103,7 +103,7 @@ internal class ActionExecutor {
         Handler(Looper.getMainLooper()).postDelayed({ vibrateInstantCue() }, 100L)
     }
 
-    fun executeCombination(action: SideKeyCombinationAction) {
+    fun executeCombination(action: SideKeyCombinationAction, vibrationEnabled: Boolean = false) {
         if (action == SideKeyCombinationAction.NONE) return
         val currentContext = context ?: resolveSystemContext()?.also { context = it } ?: return
         runCatching {
@@ -117,6 +117,7 @@ internal class ActionExecutor {
             val audio = currentContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             audio.dispatchMediaKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, keyCode, 0))
             audio.dispatchMediaKeyEvent(KeyEvent(downTime, android.os.SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, keyCode, 0))
+            if (vibrationEnabled) vibrateInstant(currentContext)
             XposedBridge.log("CustomSideButtonFunctions: executed side-key combination action=$action")
         }.onXposedFailure("execute side-key combination")
     }

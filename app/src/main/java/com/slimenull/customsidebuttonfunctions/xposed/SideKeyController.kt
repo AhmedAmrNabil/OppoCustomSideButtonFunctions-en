@@ -83,7 +83,7 @@ internal class SideKeyController {
                         longRunnable = null
                         resetClickState()
                         resetMorseState()
-                        executor.executeCombination(action)
+                        executor.executeCombination(action, activeSettings.combinationVibrationEnabled)
                         return true
                     }
                     KeyEvent.ACTION_UP -> {

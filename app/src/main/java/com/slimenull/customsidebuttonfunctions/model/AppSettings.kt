@@ -39,6 +39,7 @@ data class AppSettings(
     val cursorLongPressMs: Long = DEFAULT_CURSOR_LONG_PRESS_MS,
     val cursorRepeatIntervalMs: Long = DEFAULT_CURSOR_REPEAT_INTERVAL_MS,
     val combinationEnabled: Boolean = false,
+    val combinationVibrationEnabled: Boolean = true,
     val sideVolumeUpAction: SideKeyCombinationAction = SideKeyCombinationAction.NONE,
     val sideVolumeDownAction: SideKeyCombinationAction = SideKeyCombinationAction.NONE,
     val sidePowerAction: SideKeyCombinationAction = SideKeyCombinationAction.NONE

@@ -75,6 +75,7 @@ object SettingsStore {
     private const val KEY_CURSOR_LONG_PRESS_MS = "cursor_long_press_ms"
     private const val KEY_CURSOR_REPEAT_INTERVAL_MS = "cursor_repeat_interval_ms"
     private const val KEY_COMBINATION_ENABLED = "combination_enabled"
+    private const val KEY_COMBINATION_VIBRATION = "combination_vibration_enabled"
     private const val KEY_SIDE_VOLUME_UP_ACTION = "side_volume_up_action"
     private const val KEY_SIDE_VOLUME_DOWN_ACTION = "side_volume_down_action"
     private const val KEY_SIDE_POWER_ACTION = "side_power_action"
@@ -229,6 +230,7 @@ object SettingsStore {
             .putLong(KEY_CURSOR_LONG_PRESS_MS, settings.cursorLongPressMs)
             .putLong(KEY_CURSOR_REPEAT_INTERVAL_MS, settings.cursorRepeatIntervalMs)
             .putBoolean(KEY_COMBINATION_ENABLED, settings.combinationEnabled)
+            .putBoolean(KEY_COMBINATION_VIBRATION, settings.combinationVibrationEnabled)
             .putString(KEY_SIDE_VOLUME_UP_ACTION, settings.sideVolumeUpAction.name)
             .putString(KEY_SIDE_VOLUME_DOWN_ACTION, settings.sideVolumeDownAction.name)
             .putString(KEY_SIDE_POWER_ACTION, settings.sidePowerAction.name)
@@ -294,6 +296,10 @@ object SettingsStore {
         cursorRepeatIntervalMs = preferences.getLong(KEY_CURSOR_REPEAT_INTERVAL_MS, DEFAULT_CURSOR_REPEAT_INTERVAL_MS)
             .coerceIn(MIN_CURSOR_REPEAT_INTERVAL_MS, MAX_CURSOR_REPEAT_INTERVAL_MS),
         combinationEnabled = preferences.getBoolean(KEY_COMBINATION_ENABLED, false),
+        combinationVibrationEnabled = preferences.getBoolean(
+            KEY_COMBINATION_VIBRATION,
+            preferences.getBoolean(KEY_VIBRATION_ENABLED, true)
+        ),
         sideVolumeUpAction = enumValue(
             preferences.getString(KEY_SIDE_VOLUME_UP_ACTION, null),
             SideKeyCombinationAction.NONE,
@@ -349,6 +355,7 @@ object SettingsStore {
         put(KEY_CURSOR_LONG_PRESS_MS, settings.cursorLongPressMs)
         put(KEY_CURSOR_REPEAT_INTERVAL_MS, settings.cursorRepeatIntervalMs)
         put(KEY_COMBINATION_ENABLED, settings.combinationEnabled)
+        put(KEY_COMBINATION_VIBRATION, settings.combinationVibrationEnabled)
         put(KEY_SIDE_VOLUME_UP_ACTION, settings.sideVolumeUpAction.name)
         put(KEY_SIDE_VOLUME_DOWN_ACTION, settings.sideVolumeDownAction.name)
         put(KEY_SIDE_POWER_ACTION, settings.sidePowerAction.name)
@@ -407,6 +414,11 @@ object SettingsStore {
         cursorRepeatIntervalMs = json.optLong(KEY_CURSOR_REPEAT_INTERVAL_MS, DEFAULT_CURSOR_REPEAT_INTERVAL_MS)
             .coerceIn(MIN_CURSOR_REPEAT_INTERVAL_MS, MAX_CURSOR_REPEAT_INTERVAL_MS),
         combinationEnabled = json.optBoolean(KEY_COMBINATION_ENABLED, false),
+        combinationVibrationEnabled = if (json.has(KEY_COMBINATION_VIBRATION)) {
+            json.optBoolean(KEY_COMBINATION_VIBRATION, true)
+        } else {
+            json.optBoolean(KEY_VIBRATION_ENABLED, true)
+        },
         sideVolumeUpAction = enumValue(
             optionalString(json, KEY_SIDE_VOLUME_UP_ACTION),
             SideKeyCombinationAction.NONE,
