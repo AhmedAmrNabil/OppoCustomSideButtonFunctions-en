@@ -14,5 +14,5 @@ enum class ActionType(val title: String, val description: String) {
     XIAOBU_SHORTCUT("执行小布快捷指令", "通过小布快捷指令 ID 执行"),
     CUSTOM_ACTIVITY("自定义 Activity", "启动指定应用的 Activity"),
     CUSTOM_URL("自定义 Url Scheme", "通过系统解析器打开 Url"),
-    SHELL_COMMAND("执行 Shell 指令", "在系统框架进程中执行命令")
+    SHELL_COMMAND("执行 Shell 指令", "优先通过 Shizuku，失败后回退到 su")
 }

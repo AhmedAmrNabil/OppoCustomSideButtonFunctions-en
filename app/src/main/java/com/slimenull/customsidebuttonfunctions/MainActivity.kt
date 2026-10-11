@@ -2,6 +2,7 @@ package com.slimenull.customsidebuttonfunctions
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -153,6 +154,7 @@ import com.slimenull.customsidebuttonfunctions.model.OperationMode
 import com.slimenull.customsidebuttonfunctions.model.SideKeyCombinationAction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
+import rikka.shizuku.Shizuku
 
 private val AppBackground = Color(0xFFF3F7FD)
 private val AppBlue = Color(0xFF347FE8)
@@ -256,6 +258,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent { CustomSideButtonApp() }
+        requestShizukuPermissionIfNeeded()
+    }
+
+    private fun requestShizukuPermissionIfNeeded() {
+        runCatching {
+            if (Shizuku.pingBinder() &&
+                Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED
+            ) {
+                Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
+            }
+        }
+    }
+
+    private companion object {
+        private const val SHIZUKU_PERMISSION_REQUEST_CODE = 735
     }
 }
 

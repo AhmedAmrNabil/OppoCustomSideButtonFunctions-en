@@ -15,11 +15,13 @@ class RootCommandReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread {
             try {
-                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
-                val finished = process.waitFor(TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
-                if (!finished) process.destroyForcibly()
-                if (!finished || process.exitValue() != 0) {
-                    Log.e(TAG, "root command failed or timed out")
+                val success = when (ShizukuShellCommandExecutor.execute(context, command)) {
+                    ShizukuShellCommandExecutor.Result.SHIZUKU_SUCCESS -> true
+                    ShizukuShellCommandExecutor.Result.FALLBACK_REQUIRED ->
+                        ShizukuShellCommandExecutor.executeWithSu(command)
+                }
+                if (!success) {
+                    Log.e(TAG, "root command failed")
                 }
             } catch (error: Throwable) {
                 Log.e(TAG, "root command failed", error)
@@ -38,6 +40,5 @@ class RootCommandReceiver : BroadcastReceiver() {
         const val EXTRA_COMMAND = "command"
         const val EXTRA_SHOW_TOAST = "show_toast"
         private const val TAG = "CustomSideButtonFunctions"
-        private const val TIMEOUT_SECONDS = 10L
     }
 }

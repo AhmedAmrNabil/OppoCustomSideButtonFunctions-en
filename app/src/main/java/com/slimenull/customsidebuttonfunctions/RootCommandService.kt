@@ -10,7 +10,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
-import java.util.concurrent.TimeUnit
 
 class RootCommandService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -27,12 +26,13 @@ class RootCommandService : Service() {
         Thread {
             try {
                 Log.i(TAG, "root command received")
-                if (showToast) showToast("开始 Shell 指令")
-                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
-                val finished = process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                if (!finished) process.destroyForcibly()
-                if (!finished || process.exitValue() != 0) {
-                    Log.e(TAG, "root command failed or timed out")
+                val shizukuResult = ShizukuShellCommandExecutor.execute(this@RootCommandService, command)
+                val success = when (shizukuResult) {
+                    ShizukuShellCommandExecutor.Result.SHIZUKU_SUCCESS -> true
+                    ShizukuShellCommandExecutor.Result.FALLBACK_REQUIRED ->
+                        ShizukuShellCommandExecutor.executeWithSu(command)
+                }
+                if (!success) {
                     if (showToast) showToast("Shell 指令执行失败")
                 }
             } catch (error: Throwable) {
@@ -73,7 +73,6 @@ class RootCommandService : Service() {
         const val EXTRA_COMMAND = "command"
         const val EXTRA_SHOW_TOAST = "show_toast"
         private const val TAG = "CustomSideButtonFunctions"
-        private const val TIMEOUT_SECONDS = 10L
         private const val NOTIFICATION_ID = 735
     }
 }

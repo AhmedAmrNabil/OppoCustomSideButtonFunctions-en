@@ -57,6 +57,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        aidl = true
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -77,4 +78,8 @@ dependencies {
     // Xposed/LSPosed supplies these classes at runtime; they must not be packaged in the APK.
     compileOnly("io.github.libxposed:api:102.0.0")
     implementation("io.github.libxposed:service:102.0.0")
+
+    // Shizuku is used from the application process before falling back to the existing su path.
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
 }
