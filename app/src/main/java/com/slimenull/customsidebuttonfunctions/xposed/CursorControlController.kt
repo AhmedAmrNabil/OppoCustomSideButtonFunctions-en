@@ -26,14 +26,22 @@ internal class CursorControlController {
         const val TAG = "CustomSideButtonFunctions"
         const val IME_VISIBLE = 2
         const val CURSOR_CHORD_DELAY_MS = 180L
+        // Hidden WindowManager.LayoutParams values: status-bar panel, notification shade and
+        // status-bar additional windows. The title/package checks cover vendor-specific types.
+        val SYSTEM_UI_PANEL_TYPES = setOf(2000 + 14, 2000 + 17, 2000 + 40, 2000 + 41)
     }
 
     private val cursorLock = Any()
     private var context: Context? = null
     private var policyHandler: Handler? = null
     private var inputMethodManagerService: Any? = null
+    private var windowManagerService: Any? = null
     @Volatile private var imeWindowVisible = false
     private var imeVisibilityReadErrorLogged = false
+    private var focusedWindowReadErrorLogged = false
+    private var lastFocusedWindowDescription: String? = null
+    private var windowManagerUnavailableLogged = false
+    private var windowManagerClassUnavailableLogged = false
 
     private var powerKeyPressed = false
     private var volumeUpPressed = false
@@ -60,6 +68,7 @@ internal class CursorControlController {
     private var pendingCursorGeneration = 0
 
     fun install(lpparam: PackageHookParam) {
+        hookWindowManager(lpparam)
         hookPolicy(lpparam)
         hookImeVisibility(lpparam)
         hookMediaVolumePaths(lpparam)
@@ -102,6 +111,28 @@ internal class CursorControlController {
             }
         }
         XposedBridge.log("$TAG: PhoneWindowManager volume hook unavailable")
+    }
+
+    private fun hookWindowManager(lpparam: PackageHookParam) {
+        val windowManagerClass = XposedHelpers.findClassIfExists(
+            "com.android.server.wm.WindowManagerService",
+            lpparam.classLoader
+        ) ?: run {
+            if (!windowManagerClassUnavailableLogged) {
+                windowManagerClassUnavailableLogged = true
+                XposedBridge.log("$TAG: WindowManagerService class not found in ${lpparam.classLoader}")
+            }
+            return
+        }
+        XposedBridge.log("$TAG: found WindowManagerService class ${windowManagerClass.name}")
+        runCatching {
+            XposedHelpers.hookAllConstructors(windowManagerClass, object : Hooker() {
+                override fun afterHookedMethod(param: HookParam) {
+                    windowManagerService = param.thisObject
+                    XposedBridge.log("$TAG: captured WindowManagerService instance")
+                }
+            })
+        }.onXposedFailure("hook WindowManagerService lifecycle")
     }
 
     private fun hookPolicyLifecycle(
@@ -185,6 +216,12 @@ internal class CursorControlController {
         policyHandler = runCatching {
             XposedHelpers.getObjectField(policy, "mHandler") as? Handler
         }.onXposedFailure("read policy handler").getOrNull() ?: policyHandler
+        if (windowManagerService == null) {
+            findWindowManagerService(policy)?.let {
+                windowManagerService = it
+                XposedBridge.log("$TAG: captured WindowManagerService from policy")
+            }
+        }
     }
 
     private fun trackCursorChord(event: KeyEvent): KeyEvent? {
@@ -226,6 +263,11 @@ internal class CursorControlController {
         val keyCode = event.keyCode
         if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
 
+        if (isSystemUiOverlayActive(displayIdOf(event))) {
+            cancelCursorPressForOverlay(keyCode)
+            return false
+        }
+
         var pendingUp: KeyEvent? = null
         var pendingUpMode: CursorControlMode? = null
         var currentHandlingMode: CursorControlMode? = null
@@ -244,7 +286,7 @@ internal class CursorControlController {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 val settings = SettingsReader.load()
                 val mode = currentMode(settings)
-                if (!isCursorControlAvailable(mode)) return false
+                if (!isCursorControlAvailable(mode, displayIdOf(event))) return false
                 setPressForKeyLocked(
                     keyCode,
                     CursorPress(
@@ -280,11 +322,21 @@ internal class CursorControlController {
         return true
     }
 
+    private fun cancelCursorPressForOverlay(keyCode: Int) {
+        synchronized(cursorLock) {
+            cancelPressLocked(keyCode)
+            if (pendingCursorDown?.keyCode == keyCode) {
+                pendingCursorGeneration++
+                pendingCursorDown = null
+            }
+        }
+    }
+
     private fun currentMode(settings: AppSettings = SettingsReader.load()): CursorControlMode {
         return if (settings.enabled) settings.cursorControlMode else CursorControlMode.DISABLED
     }
 
-    private fun isCursorControlAvailable(mode: CursorControlMode): Boolean {
+    private fun isCursorControlAvailable(mode: CursorControlMode, displayId: Int = 0): Boolean {
         if (mode == CursorControlMode.DISABLED) return false
         val currentContext = context ?: resolveSystemContext()?.also { context = it } ?: return false
         val power = currentContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -297,8 +349,115 @@ internal class CursorControlController {
         if (audio?.mode == AudioManager.MODE_IN_CALL || audio?.mode == AudioManager.MODE_IN_COMMUNICATION) return false
         val keyguard = currentContext.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
         if (keyguard?.isKeyguardLocked == true) return false
-        return isImeVisible()
+        val systemUiOverlay = isSystemUiOverlayActive(displayId)
+        val imeVisible = isImeVisible()
+        XposedBridge.log(
+            "$TAG: cursor availability mode=$mode display=$displayId " +
+                "systemUiOverlay=$systemUiOverlay imeVisible=$imeVisible " +
+                "wms=${windowManagerService != null}"
+        )
+        if (systemUiOverlay) return false
+        return imeVisible
     }
+
+    /** Reads WMS focus directly; IME visibility remains true while NotificationShade is open. */
+    private fun isSystemUiOverlayActive(displayId: Int): Boolean {
+        val service = windowManagerService ?: run {
+            if (!windowManagerUnavailableLogged) {
+                windowManagerUnavailableLogged = true
+                XposedBridge.log("$TAG: WindowManagerService instance unavailable")
+            }
+            return false
+        }
+        return runCatching {
+            val root = getObjectField(service, "mRoot") ?: run {
+                if (!focusedWindowReadErrorLogged) {
+                    focusedWindowReadErrorLogged = true
+                    XposedBridge.log("$TAG: WindowManagerService.mRoot unavailable")
+                }
+                return@runCatching false
+            }
+            val display = callObjectMethod(root, "getDisplayContent", displayId)
+                ?: callObjectMethod(root, "getTopFocusedDisplayContent")
+            val focusedWindow = listOfNotNull(display, root, service)
+                .firstNotNullOfOrNull { target ->
+                    getObjectField(target, "mCurrentFocus")
+                        ?: getObjectField(target, "mFocusedWindow")
+                        ?: callObjectMethod(target, "getCurrentFocus")
+                        ?: callObjectMethod(target, "getFocusedWindow")
+                } ?: run {
+                    if (!focusedWindowReadErrorLogged) {
+                        focusedWindowReadErrorLogged = true
+                        XposedBridge.log(
+                            "$TAG: current focused window unavailable " +
+                                "root=${root.javaClass.name} display=${display?.javaClass?.name}"
+                        )
+                    }
+                    return@runCatching false
+                }
+            val attrs = getObjectField(focusedWindow, "mAttrs") ?: run {
+                if (!focusedWindowReadErrorLogged) {
+                    focusedWindowReadErrorLogged = true
+                    XposedBridge.log("$TAG: focused window attrs unavailable")
+                }
+                return@runCatching false
+            }
+            val packageName = runCatching { getObjectField(attrs, "packageName") as? String }.getOrNull()
+            if (packageName != "com.android.systemui" && packageName != "com.oplus.systemui") {
+                return@runCatching false
+            }
+            val type = runCatching { XposedHelpers.getIntField(attrs, "type") }.getOrDefault(-1)
+            val title = callObjectMethod(attrs, "getTitle")?.toString().orEmpty()
+            val description = "$packageName type=$type title=$title"
+            if (description != lastFocusedWindowDescription) {
+                lastFocusedWindowDescription = description
+                XposedBridge.log("$TAG: focused window $description")
+            }
+            type in SYSTEM_UI_PANEL_TYPES || title.contains("NotificationShade", ignoreCase = true) ||
+                title.contains("ControlCenter", ignoreCase = true) || title.contains("Shade", ignoreCase = true)
+        }.onFailure {
+            if (!focusedWindowReadErrorLogged) {
+                focusedWindowReadErrorLogged = true
+                XposedBridge.log("$TAG: failed to read focused window: ${it.message}")
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun findWindowManagerService(policy: Any): Any? {
+        val directFields = listOf("mWindowManager", "mWindowManagerService", "mWindowManagerFuncs")
+        for (fieldName in directFields) {
+            val candidate = runCatching { getObjectField(policy, fieldName) }.getOrNull() ?: continue
+            findWindowManagerService(candidate, 2)?.let { return it }
+        }
+        return null
+    }
+
+    private fun findWindowManagerService(candidate: Any, depth: Int): Any? {
+        if (candidate.javaClass.name == "com.android.server.wm.WindowManagerService") return candidate
+        if (depth == 0) return null
+        val nested = runCatching {
+            generateSequence(candidate.javaClass) { it.superclass }
+                .flatMap { it.declaredFields.asSequence() }
+                .filter { field ->
+                    field.name.contains("windowManager", ignoreCase = true) ||
+                        field.type.name.contains("WindowManager", ignoreCase = true)
+                }
+                .firstNotNullOfOrNull { field ->
+                    field.isAccessible = true
+                    field.get(candidate)?.let { findWindowManagerService(it, depth - 1) }
+                }
+        }.getOrNull()
+        if (nested != null) return nested
+        return null
+    }
+
+    private fun getObjectField(target: Any, fieldName: String): Any? = runCatching {
+        XposedHelpers.getObjectField(target, fieldName)
+    }.getOrNull()
+
+    private fun callObjectMethod(target: Any, methodName: String, vararg args: Any?): Any? = runCatching {
+        XposedHelpers.callMethod(target, methodName, *args).takeUnless { it === Unit }
+    }.getOrNull()
 
     private fun isImeVisible(): Boolean {
         val service = inputMethodManagerService ?: return imeWindowVisible
@@ -479,6 +638,10 @@ internal class CursorControlController {
         repeatCount: Int,
         description: String
     ) {
+        if (isSystemUiOverlayActive(displayIdOf(volumeEvent))) {
+            cancelCursorPressForOverlay(volumeEvent.keyCode)
+            return
+        }
         val cursorEvent = KeyEvent(
             volumeEvent.downTime,
             android.os.SystemClock.uptimeMillis(),
@@ -513,6 +676,10 @@ internal class CursorControlController {
             XposedHelpers.callMethod(target, "setDisplayId", XposedHelpers.callMethod(source, "getDisplayId"))
         }.onXposedFailure("copy display ID")
     }
+
+    private fun displayIdOf(event: KeyEvent): Int = runCatching {
+        XposedHelpers.callMethod(event, "getDisplayId") as Int
+    }.getOrDefault(0)
 
     private fun injectInputEvent(currentContext: Context, event: KeyEvent, description: String) {
         runCatching {
