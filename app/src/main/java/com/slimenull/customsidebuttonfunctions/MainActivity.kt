@@ -134,6 +134,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.window.Dialog
 import com.slimenull.customsidebuttonfunctions.data.SettingsStore
 import com.slimenull.customsidebuttonfunctions.model.ActionType
@@ -977,7 +978,17 @@ private fun morseActionTitle(binding: MorseBinding): String =
     if (binding.action == ActionType.COMMON_FUNCTION) binding.custom.commonAction.title else binding.action.title
 
 private fun morseSequenceTitle(sequence: String): String =
-    sequence.map { if (it == '0') "短" else "长" }.joinToString("")
+    sequence.map {
+        when (it) {
+            '0' -> "短侧键"
+            '1' -> "长侧键"
+            'u' -> "短上"
+            'U' -> "长上"
+            'd' -> "短下"
+            'D' -> "长下"
+            else -> it.toString()
+        }
+    }.joinToString(" ")
 
 @Composable
 private fun MorseBindingEditorDialog(
@@ -997,12 +1008,16 @@ private fun MorseBindingEditorDialog(
     var showError by remember(original) { mutableStateOf(false) }
     val error = when {
         sequence.isEmpty() -> "请输入指令序列"
+        sequence.first() !in "01" -> "序列必须以侧键开始"
+        sequence.any { it !in "01uUdD" } -> "序列只能包含 0、1、u、U、d、D"
         existing.any { it.sequence == sequence && it.sequence != original?.sequence } -> "该序列已存在"
         else -> null
     }
     val selected = ActionChoice(action, if (action == ActionType.COMMON_FUNCTION) custom.commonAction else null)
     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
     val view = LocalView.current
+
+    val keyShape = RoundedCornerShape(8.dp)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1016,24 +1031,58 @@ private fun MorseBindingEditorDialog(
                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = sequence,
-                    onValueChange = { sequence = it.filter { symbol -> symbol == '0' || symbol == '1' } },
-                    label = { Text("指令序列（0 短、1 长）") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    onValueChange = { sequence = it.filter { symbol -> symbol in "01uUdD" } },
+                    label = { Text("指令序列（0/1 侧键，u/U 上键，d/D 下键）") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     singleLine = true,
                     isError = showError && error != null,
                     supportingText = if (showError && error != null) { { Text(error) } } else null,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = { clickSound(view); sequence += '0' }, modifier = Modifier.weight(1f)) {
-                        Text("短 0")
+                Column(modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = { clickSound(view); sequence += '0' },
+                            modifier = Modifier.weight(1f),
+                            shape = keyShape) {
+                            Text("短侧键")
+                        }
+                        OutlinedButton(onClick = { clickSound(view); sequence += '1' },
+                            modifier = Modifier.weight(1f),
+                            shape = keyShape) {
+                            Text("长侧键")
+                        }
+                        IconButton(onClick = { clickSound(view); if (sequence.isNotEmpty()) sequence = sequence.dropLast(1) }) {
+                            Icon(Icons.Default.Backspace, contentDescription = "删除末位")
+                        }
                     }
-                    OutlinedButton(onClick = { clickSound(view); sequence += '1' }, modifier = Modifier.weight(1f)) {
-                        Text("长 1")
-                    }
-                    IconButton(onClick = { clickSound(view); if (sequence.isNotEmpty()) sequence = sequence.dropLast(1) }) {
-                        Icon(Icons.Default.Backspace, contentDescription = "删除末位")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = { clickSound(view); sequence += 'u' },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(0.dp),
+                            shape = keyShape) {
+                            Text("短上")
+                        }
+                        OutlinedButton(onClick = { clickSound(view); sequence += 'U' },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(0.dp),
+                            shape = keyShape) {
+                            Text("长上")
+                        }
+                        OutlinedButton(onClick = { clickSound(view); sequence += 'd' },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(0.dp),
+                            shape = keyShape) {
+                            Text("短下")
+                        }
+                        OutlinedButton(onClick = { clickSound(view); sequence += 'D' },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(0.dp),
+                            shape = keyShape) {
+                            Text("长下")
+                        }
                     }
                 }
                 SectionLabel("执行动作")
@@ -1170,6 +1219,12 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
                             SideKeyCombinationPicker("侧键+电源键", settings.sidePowerAction) {
                                 persist(settings.copy(sidePowerAction = it))
                             }
+                            HorizontalDivider(color = Color(0xFFEAF0F7))
+                            SettingSwitchRow(
+                                title = "震动反馈",
+                                description = "组合键触发时振动一次",
+                                checked = settings.combinationVibrationEnabled
+                            ) { persist(settings.copy(combinationVibrationEnabled = it)) }
                         }
                     }
                 }
@@ -1922,6 +1977,9 @@ private fun actionIcon(action: ActionType): ImageVector = when (action) {
     ActionType.NONE -> Icons.Default.RemoveCircleOutline
     ActionType.SHOW_RINGER -> Icons.Default.VolumeUp
     ActionType.CYCLE_RINGER -> Icons.Default.VolumeUp
+    ActionType.MEDIA_PREVIOUS -> Icons.Default.ArrowBack
+    ActionType.MEDIA_NEXT -> Icons.Default.ArrowForward
+    ActionType.MEDIA_PLAY_PAUSE -> Icons.Default.VolumeUp
     ActionType.TOGGLE_DND -> Icons.Default.NotificationsOff
     ActionType.CAMERA -> Icons.Default.CameraAlt
     ActionType.FLASHLIGHT -> Icons.Default.FlashOn

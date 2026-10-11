@@ -13,6 +13,7 @@ import android.view.KeyEvent
 import com.slimenull.customsidebuttonfunctions.model.AppSettings
 import com.slimenull.customsidebuttonfunctions.model.CursorControlMode
 import com.slimenull.customsidebuttonfunctions.model.CursorLongPressAction
+import com.slimenull.customsidebuttonfunctions.model.OperationMode
 import com.slimenull.customsidebuttonfunctions.onXposedFailure
 
 /**
@@ -93,6 +94,9 @@ internal class CursorControlController {
                                 capturePolicyServices(param.thisObject)
                                 val event = param.args.firstOrNull() as? KeyEvent ?: return
                                 if (isReplayedVolumeEvent(event)) return
+                                if (isVolumeKey(event) && MorseSequenceRuntimeState.active &&
+                                    SettingsReader.load().operationMode == OperationMode.MORSE
+                                ) return
 
                                 val replay = trackCursorChord(event)
                                 if (replay != null) injectReplayedVolumeEvent(replay)
@@ -262,6 +266,9 @@ internal class CursorControlController {
     private fun handleSystemVolumeKey(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
         if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
+        if (MorseSequenceRuntimeState.active && SettingsReader.load().operationMode == OperationMode.MORSE) {
+            return false
+        }
 
         if (isSystemUiOverlayActive(displayIdOf(event))) {
             cancelCursorPressForOverlay(keyCode)
@@ -321,6 +328,9 @@ internal class CursorControlController {
         }
         return true
     }
+
+    private fun isVolumeKey(event: KeyEvent): Boolean =
+        event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
 
     private fun cancelCursorPressForOverlay(keyCode: Int) {
         synchronized(cursorLock) {
