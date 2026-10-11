@@ -16,6 +16,11 @@ internal object MorseSequenceRuntimeState {
     var active: Boolean = false
 }
 
+private data class MorseAppendResult(
+    val commandExecuted: Boolean = false,
+    val vibrationExecuted: Boolean = false
+)
+
 /** Thread-safe gesture state machine shared by framework and raw input sources. */
 internal class SideKeyController {
     private val handler = Handler(Looper.getMainLooper())
@@ -126,10 +131,16 @@ internal class SideKeyController {
             val runnable = Runnable {
                 synchronized(lock) {
                     if (morseAuxiliaryDownAt[event.keyCode] == now &&
-                        morseAuxiliaryLongReached.add(event.keyCode) &&
-                        settings.morseLongVibrationEnabled
+                        morseAuxiliaryLongReached.add(event.keyCode)
                     ) {
-                        executor.vibrateInstantCue()
+                        val result = appendMorseSymbol(
+                            if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) 'U' else 'D',
+                            executor,
+                            settings
+                        )
+                        if (!result.vibrationExecuted && settings.morseLongVibrationEnabled) {
+                            executor.vibrateInstantCue()
+                        }
                     }
                 }
             }
@@ -142,18 +153,26 @@ internal class SideKeyController {
         morseAuxiliaryLongRunnables.remove(event.keyCode)?.let(handler::removeCallbacks)
         val longReached = morseAuxiliaryLongReached.remove(event.keyCode)
         val isLong = longReached || now - downAt >= settings.morseLongPressMs
-        if (isLong && !longReached && settings.morseLongVibrationEnabled) {
-            executor.vibrateInstantCue()
+        if (isLong && !longReached) {
+            val result = appendMorseSymbol(
+                if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) 'U' else 'D',
+                executor,
+                settings
+            )
+            if (!result.vibrationExecuted && settings.morseLongVibrationEnabled) {
+                executor.vibrateInstantCue()
+            }
+        } else if (!longReached) {
+            appendMorseSymbol(
+                if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) 'u' else 'd',
+                executor,
+                settings
+            )
         }
-        appendMorseSymbol(
-            if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-                if (isLong) 'U' else 'u'
-            } else {
-                if (isLong) 'D' else 'd'
-            },
-            executor,
-            settings
-        )
+        if (longReached && MorseSequenceRuntimeState.active) {
+            morseLastUpAt = now
+            scheduleMorseFinish(executor, settings)
+        }
         return true
     }
 
@@ -346,30 +365,19 @@ internal class SideKeyController {
                             return@synchronized
                         }
                         morseLongReached = true
-                        val sequence = morseSequence.toString() + '1'
-                        val binding = current.morseBindings.firstOrNull { it.sequence == sequence }
-                        val hasLongerMatch = current.morseBindings.any {
-                            it.sequence.length > sequence.length && it.sequence.startsWith(sequence)
-                        }
-                        if (current.morseImmediateExecutionEnabled && !current.hasConfiguredCombination &&
-                            binding != null && !hasLongerMatch) {
+                        val result = appendMorseSymbol(
+                            '1',
+                            executor,
+                            current,
+                            allowImmediate = !(current.hasConfiguredCombination && morseSequence.isEmpty())
+                        )
+                        if (result.commandExecuted) {
                             morseTriggeredWhilePressed = true
-                            morseSequence.clear()
-                            MorseSequenceRuntimeState.active = false
-                            morseFinishRunnable?.let(handler::removeCallbacks)
-                            morseFinishRunnable = null
-                            execute(
-                                binding.action,
-                                binding.custom,
-                                current,
-                                executor,
-                                activeInteractive,
-                                binding.wakeScreen,
-                                current.vibrationEnabled || binding.vibrationEnabled
-                            )
                             return@synchronized
                         }
-                            if (activeSettings.morseLongVibrationEnabled) executor.vibrateInstantCue()
+                        if (!result.vibrationExecuted && activeSettings.morseLongVibrationEnabled) {
+                            executor.vibrateInstantCue()
+                        }
                     }
                 }
             }
@@ -394,32 +402,57 @@ internal class SideKeyController {
         }
         val now = SystemClock.uptimeMillis()
         val isLong = morseLongReached || now - morseDownAt >= activeSettings.morseLongPressMs
-        if (isLong && !morseLongReached && activeSettings.morseLongVibrationEnabled) {
-            executor.vibrateInstantCue()
+        if (isLong && !morseLongReached) {
+            val result = appendMorseSymbol('1', executor, SettingsReader.load())
+            if (!result.vibrationExecuted && activeSettings.morseLongVibrationEnabled) {
+                executor.vibrateInstantCue()
+            }
+        } else if (!morseLongReached) {
+            appendMorseSymbol('0', executor, SettingsReader.load())
         }
         activeInteractive = activeInteractive && interactive
-        appendMorseSymbol(if (isLong) '1' else '0', executor, SettingsReader.load())
+        if (morseLongReached && MorseSequenceRuntimeState.active) {
+            morseLastUpAt = now
+            scheduleMorseFinish(executor, SettingsReader.load())
+        }
     }
 
-    private fun appendMorseSymbol(symbol: Char, executor: ActionExecutor, settings: AppSettings) {
+    private fun appendMorseSymbol(
+        symbol: Char,
+        executor: ActionExecutor,
+        settings: AppSettings,
+        allowImmediate: Boolean = true
+    ): MorseAppendResult {
         morseSequence.append(symbol)
         MorseSequenceRuntimeState.active = true
         morseLastUpAt = SystemClock.uptimeMillis()
         if (!settings.enabled || settings.operationMode != OperationMode.MORSE) {
             resetMorseState()
-            return
+            return MorseAppendResult()
         }
         val sequence = morseSequence.toString()
         val exactMatch = settings.morseBindings.any { it.sequence == sequence }
         val hasLongerMatch = settings.morseBindings.any {
             it.sequence.length > sequence.length && it.sequence.startsWith(sequence)
         }
-        if (settings.morseImmediateExecutionEnabled && exactMatch && !hasLongerMatch &&
-            !settings.hasConfiguredCombination
-        ) {
+        // A unique short side-key or volume-key sequence can be executed as soon
+        // as its final key is released. A configured side-key combination only
+        // blocks the old long-side-key immediate path, which is checked in the
+        // long-press threshold runnable above.
+        if (allowImmediate && settings.morseImmediateExecutionEnabled && exactMatch && !hasLongerMatch) {
+            val binding = settings.morseBindings.firstOrNull { it.sequence == sequence }
+                ?: return MorseAppendResult()
+            val vibrationExecuted = binding.action != ActionType.NONE &&
+                (settings.vibrationEnabled || binding.vibrationEnabled)
             finishMorseSequence(executor, settings)
-            return
+            return MorseAppendResult(commandExecuted = true, vibrationExecuted = vibrationExecuted)
         }
+        scheduleMorseFinish(executor, settings)
+        return MorseAppendResult()
+    }
+
+    private fun scheduleMorseFinish(executor: ActionExecutor, settings: AppSettings) {
+        morseFinishRunnable?.let(handler::removeCallbacks)
         val runnable = object : Runnable {
             override fun run() {
                 synchronized(lock) {
@@ -430,7 +463,7 @@ internal class SideKeyController {
             }
         }
         morseFinishRunnable = runnable
-        handler.postDelayed(runnable, activeSettings.morseCommandWindowMs)
+        handler.postDelayed(runnable, settings.morseCommandWindowMs)
     }
 
     private fun finishMorseSequence(executor: ActionExecutor, settings: AppSettings = SettingsReader.load()) {
