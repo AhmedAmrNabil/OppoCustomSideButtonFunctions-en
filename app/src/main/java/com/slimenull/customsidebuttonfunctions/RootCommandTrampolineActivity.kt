@@ -15,6 +15,7 @@ class RootCommandTrampolineActivity : Activity() {
                 .setAction(RootCommandService.ACTION)
                 .putExtra(RootCommandService.EXTRA_COMMAND, command)
                 .putExtra(RootCommandService.EXTRA_SHOW_TOAST, intent.getBooleanExtra(EXTRA_SHOW_TOAST, true))
+                .putExtra(RootCommandService.EXTRA_PREFER_SU, intent.getBooleanExtra(EXTRA_PREFER_SU, false))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent)
             } else {
@@ -30,5 +31,6 @@ class RootCommandTrampolineActivity : Activity() {
         const val ACTION = "com.slimenull.customsidebuttonfunctions.EXECUTE_ROOT"
         const val EXTRA_COMMAND = "command"
         const val EXTRA_SHOW_TOAST = "show_toast"
+        const val EXTRA_PREFER_SU = "prefer_su"
     }
 }

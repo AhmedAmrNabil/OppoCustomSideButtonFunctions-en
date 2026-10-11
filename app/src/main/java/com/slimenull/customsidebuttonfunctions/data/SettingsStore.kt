@@ -68,6 +68,7 @@ object SettingsStore {
     private const val KEY_TOAST_TEXT = "toast_text"
     private const val KEY_UNKNOWN_MORSE_FEEDBACK = "unknown_morse_feedback"
     private const val KEY_UNKNOWN_MORSE_TOAST_TEXT = "unknown_morse_toast_text"
+    private const val KEY_PREFER_SU_SHELL = "prefer_su_for_shell_commands"
     private const val KEY_WAKE_SCREEN = "wake_screen_when_off"
     private const val KEY_CURSOR_CONTROL_MODE = "cursor_control_mode"
     private const val KEY_CURSOR_LONG_PRESS_ACTION = "cursor_long_press_action"
@@ -221,6 +222,7 @@ object SettingsStore {
             .putString(KEY_TOAST_TEXT, settings.toastText)
             .putBoolean(KEY_UNKNOWN_MORSE_FEEDBACK, settings.unknownMorseFeedbackEnabled)
             .putString(KEY_UNKNOWN_MORSE_TOAST_TEXT, settings.unknownMorseToastText)
+            .putBoolean(KEY_PREFER_SU_SHELL, settings.preferSuForShellCommands)
             .putBoolean(KEY_WAKE_SCREEN, settings.wakeScreenWhenOff)
             .putString(KEY_CURSOR_CONTROL_MODE, settings.cursorControlMode.name)
             .putString(KEY_CURSOR_LONG_PRESS_ACTION, settings.cursorLongPressAction.name)
@@ -275,6 +277,7 @@ object SettingsStore {
         unknownMorseFeedbackEnabled = preferences.getBoolean(KEY_UNKNOWN_MORSE_FEEDBACK, false),
         unknownMorseToastText = preferences.getString(KEY_UNKNOWN_MORSE_TOAST_TEXT, DEFAULT_UNKNOWN_MORSE_TOAST)
             ?: DEFAULT_UNKNOWN_MORSE_TOAST,
+        preferSuForShellCommands = preferences.getBoolean(KEY_PREFER_SU_SHELL, false),
         wakeScreenWhenOff = preferences.getBoolean(KEY_WAKE_SCREEN, false),
         cursorControlMode = preferences.getString(KEY_CURSOR_CONTROL_MODE, null)
             ?.let { runCatching { CursorControlMode.valueOf(it) }.onXposedFailure("parse cursor control mode").getOrNull() }
@@ -339,6 +342,7 @@ object SettingsStore {
         put(KEY_TOAST_TEXT, settings.toastText)
         put(KEY_UNKNOWN_MORSE_FEEDBACK, settings.unknownMorseFeedbackEnabled)
         put(KEY_UNKNOWN_MORSE_TOAST_TEXT, settings.unknownMorseToastText)
+        put(KEY_PREFER_SU_SHELL, settings.preferSuForShellCommands)
         put(KEY_WAKE_SCREEN, settings.wakeScreenWhenOff)
         put(KEY_CURSOR_CONTROL_MODE, settings.cursorControlMode.name)
         put(KEY_CURSOR_LONG_PRESS_ACTION, settings.cursorLongPressAction.name)
@@ -390,6 +394,7 @@ object SettingsStore {
         toastText = json.optString(KEY_TOAST_TEXT, "侧键操作已执行"),
         unknownMorseFeedbackEnabled = json.optBoolean(KEY_UNKNOWN_MORSE_FEEDBACK, false),
         unknownMorseToastText = json.optString(KEY_UNKNOWN_MORSE_TOAST_TEXT, DEFAULT_UNKNOWN_MORSE_TOAST),
+        preferSuForShellCommands = json.optBoolean(KEY_PREFER_SU_SHELL, false),
         wakeScreenWhenOff = json.optBoolean(KEY_WAKE_SCREEN, false),
         cursorControlMode = enumValue(optionalString(json, KEY_CURSOR_CONTROL_MODE), CursorControlMode.DISABLED, "cursor control mode"),
         cursorLongPressAction = enumValue(

@@ -10,21 +10,44 @@ import com.slimenull.customsidebuttonfunctions.onXposedFailure
 
 /** Runs in the process that handled the side key; never blocks its input thread. */
 internal object ShellCommandRunner {
-    fun executeAsRoot(context: Context, command: String, showToast: Boolean = true): Boolean {
-        return executeViaActivity(context, command, showToast)
+    fun executeAsRoot(
+        context: Context,
+        command: String,
+        showToast: Boolean = true,
+        preferSu: Boolean = false
+    ): Boolean {
+        return executeViaActivity(context, command, showToast, preferSu)
     }
 
-    fun executeViaReceiver(context: Context, command: String, showToast: Boolean = true): Boolean {
+    fun executeViaReceiver(
+        context: Context,
+        command: String,
+        showToast: Boolean = true,
+        preferSu: Boolean = false
+    ): Boolean {
         return runCatching {
-            context.sendBroadcast(appIntent(RootCommandReceiver::class.java, RootCommandReceiver.ACTION, command, showToast))
+            context.sendBroadcast(
+                appIntent(RootCommandReceiver::class.java, RootCommandReceiver.ACTION, command, showToast, preferSu)
+            )
             XposedBridge.log("CustomSideButtonFunctions: dispatched root command to app receiver")
             true
         }.onXposedFailure("receiver dispatch").getOrDefault(false)
     }
 
-    fun executeViaService(context: Context, command: String, showToast: Boolean = true): Boolean {
+    fun executeViaService(
+        context: Context,
+        command: String,
+        showToast: Boolean = true,
+        preferSu: Boolean = false
+    ): Boolean {
         return runCatching {
-            val intent = appIntent(RootCommandService::class.java, RootCommandService.ACTION, command, showToast)
+            val intent = appIntent(
+                RootCommandService::class.java,
+                RootCommandService.ACTION,
+                command,
+                showToast,
+                preferSu
+            )
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -35,13 +58,19 @@ internal object ShellCommandRunner {
         }.onXposedFailure("service dispatch").getOrDefault(false)
     }
 
-    fun executeViaActivity(context: Context, command: String, showToast: Boolean = true): Boolean {
+    fun executeViaActivity(
+        context: Context,
+        command: String,
+        showToast: Boolean = true,
+        preferSu: Boolean = false
+    ): Boolean {
         return runCatching {
             val intent = appIntent(
                 RootCommandTrampolineActivity::class.java,
                 RootCommandTrampolineActivity.ACTION,
                 command,
-                showToast
+                showToast,
+                preferSu
             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
             context.startActivity(intent)
             XposedBridge.log("CustomSideButtonFunctions: dispatched root command to app trampoline")
@@ -49,11 +78,18 @@ internal object ShellCommandRunner {
         }.onXposedFailure("activity dispatch").getOrDefault(false)
     }
 
-    private fun appIntent(component: Class<*>, action: String, command: String, showToast: Boolean): Intent = Intent()
+    private fun appIntent(
+        component: Class<*>,
+        action: String,
+        command: String,
+        showToast: Boolean,
+        preferSu: Boolean
+    ): Intent = Intent()
         .setComponent(ComponentName(PACKAGE, component.name))
         .setAction(action)
         .putExtra("command", command)
         .putExtra("show_toast", showToast)
+        .putExtra("prefer_su", preferSu)
 
     private const val PACKAGE = "com.slimenull.customsidebuttonfunctions"
 }

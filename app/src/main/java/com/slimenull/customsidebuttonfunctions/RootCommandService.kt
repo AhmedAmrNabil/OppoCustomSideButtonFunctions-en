@@ -18,6 +18,7 @@ class RootCommandService : Service() {
         startForeground(NOTIFICATION_ID, notification())
         val command = intent?.getStringExtra(EXTRA_COMMAND)?.takeIf { it.isNotBlank() }
         val showToast = intent?.getBooleanExtra(EXTRA_SHOW_TOAST, true) ?: true
+        val preferSu = intent?.getBooleanExtra(EXTRA_PREFER_SU, false) ?: false
         if (command == null) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelfResult(startId)
@@ -26,12 +27,8 @@ class RootCommandService : Service() {
         Thread {
             try {
                 Log.i(TAG, "root command received")
-                val shizukuResult = ShizukuShellCommandExecutor.execute(this@RootCommandService, command)
-                val success = when (shizukuResult) {
-                    ShizukuShellCommandExecutor.Result.SHIZUKU_SUCCESS -> true
-                    ShizukuShellCommandExecutor.Result.FALLBACK_REQUIRED ->
-                        ShizukuShellCommandExecutor.executeWithSu(command)
-                }
+                val success = ShizukuShellCommandExecutor.execute(this@RootCommandService, command, preferSu) ==
+                    ShizukuShellCommandExecutor.Result.SUCCESS
                 if (!success) {
                     if (showToast) showToast("Shell 指令执行失败")
                 }
@@ -72,6 +69,7 @@ class RootCommandService : Service() {
         const val ACTION = "com.slimenull.customsidebuttonfunctions.EXECUTE_ROOT"
         const val EXTRA_COMMAND = "command"
         const val EXTRA_SHOW_TOAST = "show_toast"
+        const val EXTRA_PREFER_SU = "prefer_su"
         private const val TAG = "CustomSideButtonFunctions"
         private const val NOTIFICATION_ID = 735
     }
