@@ -36,6 +36,7 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:taskAffinity="${applicationId}.root_command"
             android:permission="android.permission.MANAGE_USERS"
             android:theme="@style/Theme.RootCommandTrampoline" />
         <provider

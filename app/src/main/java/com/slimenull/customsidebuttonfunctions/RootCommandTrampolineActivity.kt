@@ -22,7 +22,9 @@ class RootCommandTrampolineActivity : Activity() {
                 startService(serviceIntent)
             }
         }
-        finish()
+        // This activity is launched in its own task so finishing it cannot expose MainActivity
+        // from the app's existing task when the app is already running in the background.
+        finishAndRemoveTask()
         @Suppress("DEPRECATION")
         overridePendingTransition(0, 0)
     }

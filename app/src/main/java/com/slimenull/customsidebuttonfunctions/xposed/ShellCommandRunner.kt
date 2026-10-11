@@ -71,7 +71,11 @@ internal object ShellCommandRunner {
                 command,
                 showToast,
                 preferSu
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            ).addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_MULTIPLE_TASK or
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION
+            )
             context.startActivity(intent)
             XposedBridge.log("CustomSideButtonFunctions: dispatched root command to app trampoline")
             true
