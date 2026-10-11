@@ -150,7 +150,11 @@ internal class ActionExecutor {
                 ActionType.XIAOBU_SHORTCUT -> executeXiaobuShortcut(currentContext, custom.xiaobuShortcutId)
                 ActionType.CUSTOM_ACTIVITY -> startCustomActivity(currentContext, custom)
                 ActionType.CUSTOM_URL -> openUrl(currentContext, custom.urlScheme)
-                ActionType.SHELL_COMMAND -> executeShell(custom.shellCommand, custom.shellToastEnabled)
+                ActionType.SHELL_COMMAND -> executeShell(
+                    custom.shellCommand,
+                    custom.shellToastEnabled,
+                    settings.preferSuForShellCommands
+                )
                 ActionType.NONE -> return
             }
             feedback(currentContext, action, settings, cycleMode, vibrationEnabled)
@@ -656,14 +660,19 @@ internal class ActionExecutor {
         )
     }
 
-    private fun executeShell(command: String, showToast: Boolean = true, onFailure: (() -> Unit)? = null) {
+    private fun executeShell(
+        command: String,
+        showToast: Boolean = true,
+        preferSu: Boolean = false,
+        onFailure: (() -> Unit)? = null
+    ) {
         if (command.isBlank()) {
             XposedBridge.log("CustomSideButtonFunctions: shell command is empty")
             return
         }
         Thread {
             val currentContext = context ?: return@Thread
-            if (!ShellCommandRunner.executeAsRoot(currentContext, command, showToast)) onFailure?.invoke()
+            if (!ShellCommandRunner.executeAsRoot(currentContext, command, showToast, preferSu)) onFailure?.invoke()
         }.apply {
             isDaemon = true
             name = "CustomSideButtonShell"

@@ -2,6 +2,7 @@ package com.slimenull.customsidebuttonfunctions
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -9,7 +10,6 @@ import android.view.RoundedCorner
 import android.view.SoundEffectConstants
 import android.view.View
 import android.view.ViewTreeObserver
-import android.view.WindowInsets
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -105,7 +105,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -134,7 +133,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.slimenull.customsidebuttonfunctions.data.SettingsStore
@@ -152,7 +150,7 @@ import com.slimenull.customsidebuttonfunctions.model.MorseBinding
 import com.slimenull.customsidebuttonfunctions.model.OperationMode
 import com.slimenull.customsidebuttonfunctions.model.SideKeyCombinationAction
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.collect
+import rikka.shizuku.Shizuku
 
 private val AppBackground = Color(0xFFF3F7FD)
 private val AppBlue = Color(0xFF347FE8)
@@ -256,6 +254,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent { CustomSideButtonApp() }
+        requestShizukuPermissionIfNeeded()
+    }
+
+    private fun requestShizukuPermissionIfNeeded() {
+        runCatching {
+            if (Shizuku.pingBinder() &&
+                Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED
+            ) {
+                Shizuku.requestPermission(SHIZUKU_PERMISSION_REQUEST_CODE)
+            }
+        }
+    }
+
+    private companion object {
+        private const val SHIZUKU_PERMISSION_REQUEST_CODE = 735
     }
 }
 
@@ -776,12 +789,12 @@ private fun GestureScreen(
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp)) {
-                    SettingSwitchRow("执行时亮屏", currentWakeScreen) {
+                    SettingSwitchRow("执行时亮屏", null, currentWakeScreen) {
                         persist(updateWakeScreen(kind, settings, it))
                     }
                     if (!settings.vibrationEnabled) {
                         HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEAF0F7))
-                        SettingSwitchRow("触发时振动", currentVibration) {
+                        SettingSwitchRow("触发时振动", null, currentVibration) {
                             persist(updateVibration(kind, settings, it))
                         }
                     }
@@ -855,15 +868,23 @@ private fun MorseScreen(
             item {
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(14.dp)) {
-                        SettingSwitchRow("按下时振动", settings.morsePressVibrationEnabled) {
+                        SettingSwitchRow("按下时振动", null, settings.morsePressVibrationEnabled) {
                             persist(settings.copy(morsePressVibrationEnabled = it))
                         }
                         HorizontalDivider(color = Color(0xFFEAF0F7))
-                        SettingSwitchRow("持续按到长按时间时振动", settings.morseLongVibrationEnabled) {
+                        SettingSwitchRow(
+                            "持续按到长按时间时振动",
+                            null,
+                            settings.morseLongVibrationEnabled
+                        ) {
                             persist(settings.copy(morseLongVibrationEnabled = it))
                         }
                         HorizontalDivider(color = Color(0xFFEAF0F7))
-                        SettingSwitchRow("尽可能立即执行操作", settings.morseImmediateExecutionEnabled) {
+                        SettingSwitchRow(
+                            "尽可能立即执行操作",
+                            null,
+                            settings.morseImmediateExecutionEnabled
+                        ) {
                             persist(settings.copy(morseImmediateExecutionEnabled = it))
                         }
                     }
@@ -1029,10 +1050,14 @@ private fun MorseBindingEditorDialog(
                 SectionLabel("选项")
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(14.dp)) {
-                        SettingSwitchRow("执行时亮屏", wakeScreen) { wakeScreen = it }
+                        SettingSwitchRow("执行时亮屏", null, wakeScreen) { wakeScreen = it }
                         if (!globalVibrationEnabled) {
                             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEAF0F7))
-                            SettingSwitchRow("触发时振动", vibrationEnabled) { vibrationEnabled = it }
+                            SettingSwitchRow(
+                                "触发时振动",
+                                null,
+                                vibrationEnabled
+                            ) { vibrationEnabled = it }
                         }
                     }
                 }
@@ -1061,7 +1086,11 @@ private fun FeedbackScreen(settings: AppSettings, persist: (AppSettings) -> Unit
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp)) {
-                    SettingSwitchRow("触发时振动", settings.vibrationEnabled) { persist(settings.copy(vibrationEnabled = it)) }
+                    SettingSwitchRow("触发时振动", null, settings.vibrationEnabled) {
+                        persist(
+                            settings.copy(vibrationEnabled = it)
+                        )
+                    }
                 }
             }
           }
@@ -1069,7 +1098,11 @@ private fun FeedbackScreen(settings: AppSettings, persist: (AppSettings) -> Unit
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingSwitchRow("显示 Toast 提示", settings.toastEnabled) { persist(settings.copy(toastEnabled = it)) }
+                    SettingSwitchRow("显示 Toast 提示", null, settings.toastEnabled) {
+                        persist(
+                            settings.copy(toastEnabled = it)
+                        )
+                    }
                     OutlinedTextField(
                         value = settings.toastText,
                         onValueChange = { persist(settings.copy(toastText = it)) },
@@ -1085,7 +1118,7 @@ private fun FeedbackScreen(settings: AppSettings, persist: (AppSettings) -> Unit
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingSwitchRow("Toast 与双震动", settings.unknownMorseFeedbackEnabled) {
+                    SettingSwitchRow("Toast 与双震动", null, settings.unknownMorseFeedbackEnabled) {
                         persist(settings.copy(unknownMorseFeedbackEnabled = it))
                     }
                     OutlinedTextField(
@@ -1123,9 +1156,9 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SettingSwitchRow(
                             title = "启用组合键",
-                            checked = settings.combinationEnabled,
-                            onCheckedChange = { persist(settings.copy(combinationEnabled = it)) }
-                        )
+                            description = null,
+                            checked = settings.combinationEnabled
+                        ) { persist(settings.copy(combinationEnabled = it)) }
                         if (settings.combinationEnabled) {
                             HorizontalDivider(color = Color(0xFFEAF0F7))
                             SideKeyCombinationPicker("侧键+上键", settings.sideVolumeUpAction) {
@@ -1380,7 +1413,17 @@ private fun AdvancedScreen(settings: AppSettings, persist: (AppSettings) -> Unit
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp)) {
-                    SettingSwitchRow("息屏时唤醒设备", settings.wakeScreenWhenOff) { persist(settings.copy(wakeScreenWhenOff = it)) }
+                    SettingSwitchRow(
+                        "优先直接执行 su 指令",
+                        "需要应用拥有 root 权限；su 执行失败后会尝试 Shizuku。",
+                        settings.preferSuForShellCommands
+                    ) { persist(settings.copy(preferSuForShellCommands = it)) }
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEAF0F7))
+                    SettingSwitchRow("息屏时唤醒设备", "执行指令时, 使屏幕亮起. 若不启用此项, 你也可以在指令选项中单独配置.", settings.wakeScreenWhenOff) {
+                        persist(
+                            settings.copy(wakeScreenWhenOff = it)
+                        )
+                    }
                     HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEAF0F7))
                     Text("按键事件来源", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     Text("Oplus StrategyActionButtonKeyLaunchApp", style = MaterialTheme.typography.bodySmall, color = AppMuted)
@@ -1643,9 +1686,9 @@ private fun CustomActionEditor(
                 )
                 SettingSwitchRow(
                     title = "显示执行结果 Toast",
-                    checked = custom.shellToastEnabled,
-                    onCheckedChange = { onChange(custom.copy(shellToastEnabled = it)) }
-                )
+                    description = null,
+                    checked = custom.shellToastEnabled
+                ) { onChange(custom.copy(shellToastEnabled = it)) }
             }
         }
         ActionType.CUSTOM_ACTIVITY -> {
@@ -1655,9 +1698,9 @@ private fun CustomActionEditor(
                 OutlinedTextField(custom.activityAction, { onChange(custom.copy(activityAction = it)) }, label = { Text("Intent Action（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 SettingSwitchRow(
                     title = "以小窗模式运行",
-                    checked = custom.launchInSmallWindow,
-                    onCheckedChange = { onChange(custom.copy(launchInSmallWindow = it)) }
-                )
+                    description = null,
+                    checked = custom.launchInSmallWindow
+                ) { onChange(custom.copy(launchInSmallWindow = it)) }
                 ActivityPresetPicker { preset ->
                     onChange(
                         custom.copy(
@@ -1692,9 +1735,9 @@ private fun CustomActionEditor(
                 )
                 SettingSwitchRow(
                     title = "显示执行结果 Toast",
-                    checked = custom.shellToastEnabled,
-                    onCheckedChange = { onChange(custom.copy(shellToastEnabled = it)) }
-                )
+                    description = null,
+                    checked = custom.shellToastEnabled
+                ) { onChange(custom.copy(shellToastEnabled = it)) }
             }
         }
         else -> Unit
@@ -1712,10 +1755,23 @@ private fun ParameterCard(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SettingSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun SettingSwitchRow(
+    title: String,
+    description: String?,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
     val view = LocalView.current
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(title)
+            if (!description.isNullOrBlank()) {
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AppMuted)
+            }
+        }
         Switch(checked, { clickSound(view); onCheckedChange(it) })
     }
 }

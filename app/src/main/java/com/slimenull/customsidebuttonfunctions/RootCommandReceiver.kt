@@ -9,17 +9,17 @@ import android.widget.Toast
 class RootCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val command = intent.getStringExtra(EXTRA_COMMAND)?.takeIf { it.isNotBlank() } ?: return
+        val preferSu = intent.getBooleanExtra(EXTRA_PREFER_SU, false)
         if (intent.getBooleanExtra(EXTRA_SHOW_TOAST, true)) {
             Toast.makeText(context.applicationContext, "已收到 Shell 广播", Toast.LENGTH_SHORT).show()
         }
         val pending = goAsync()
         Thread {
             try {
-                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
-                val finished = process.waitFor(TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
-                if (!finished) process.destroyForcibly()
-                if (!finished || process.exitValue() != 0) {
-                    Log.e(TAG, "root command failed or timed out")
+                val success = ShizukuShellCommandExecutor.execute(context, command, preferSu) ==
+                    ShizukuShellCommandExecutor.Result.SUCCESS
+                if (!success) {
+                    Log.e(TAG, "root command failed")
                 }
             } catch (error: Throwable) {
                 Log.e(TAG, "root command failed", error)
@@ -37,7 +37,7 @@ class RootCommandReceiver : BroadcastReceiver() {
         const val ACTION = "com.slimenull.customsidebuttonfunctions.EXECUTE_ROOT"
         const val EXTRA_COMMAND = "command"
         const val EXTRA_SHOW_TOAST = "show_toast"
+        const val EXTRA_PREFER_SU = "prefer_su"
         private const val TAG = "CustomSideButtonFunctions"
-        private const val TIMEOUT_SECONDS = 10L
     }
 }
