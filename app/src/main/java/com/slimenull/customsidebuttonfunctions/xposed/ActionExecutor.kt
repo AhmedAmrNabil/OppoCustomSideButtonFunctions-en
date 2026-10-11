@@ -141,6 +141,9 @@ internal class ActionExecutor {
             when (action) {
                 ActionType.SHOW_RINGER -> showRingerMode(currentContext)
                 ActionType.CYCLE_RINGER -> cycleMode = cycleRinger(currentContext)
+                ActionType.MEDIA_PREVIOUS -> dispatchMediaKey(currentContext, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+                ActionType.MEDIA_NEXT -> dispatchMediaKey(currentContext, KeyEvent.KEYCODE_MEDIA_NEXT)
+                ActionType.MEDIA_PLAY_PAUSE -> dispatchMediaKey(currentContext, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
                 ActionType.TOGGLE_DND -> toggleDnd(currentContext)
                 ActionType.CAMERA -> openCamera(currentContext)
                 ActionType.FLASHLIGHT -> toggleTorch(currentContext)
@@ -172,6 +175,15 @@ internal class ActionExecutor {
     private fun showRingerMode(context: Context) {
         val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         sendRingModeSeedling(context, getRingerModeInternal(audio))
+    }
+
+    private fun dispatchMediaKey(context: Context, keyCode: Int) {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val downTime = android.os.SystemClock.uptimeMillis()
+        audio.dispatchMediaKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, keyCode, 0))
+        audio.dispatchMediaKeyEvent(
+            KeyEvent(downTime, android.os.SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, keyCode, 0)
+        )
     }
 
     private fun cycleRinger(context: Context): Int {

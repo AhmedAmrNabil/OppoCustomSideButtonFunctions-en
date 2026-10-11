@@ -10,6 +10,12 @@ import com.slimenull.customsidebuttonfunctions.model.CustomActionSettings
 import com.slimenull.customsidebuttonfunctions.model.OperationMode
 import com.slimenull.customsidebuttonfunctions.model.SideKeyCombinationAction
 
+/** Published only inside system_server so the cursor hook can yield Morse volume keys. */
+internal object MorseSequenceRuntimeState {
+    @Volatile
+    var active: Boolean = false
+}
+
 /** Thread-safe gesture state machine shared by framework and raw input sources. */
 internal class SideKeyController {
     private val handler = Handler(Looper.getMainLooper())
@@ -32,6 +38,9 @@ internal class SideKeyController {
     private var morseTriggeredWhilePressed = false
     private var morseThresholdRunnable: Runnable? = null
     private var morseFinishRunnable: Runnable? = null
+    private val morseAuxiliaryDownAt = mutableMapOf<Int, Long>()
+    private val morseAuxiliaryLongReached = mutableSetOf<Int>()
+    private val morseAuxiliaryLongRunnables = mutableMapOf<Int, Runnable>()
 
     fun onKeyEvent(event: KeyEvent, executor: ActionExecutor) {
         when (event.action) {
@@ -57,31 +66,95 @@ internal class SideKeyController {
     /** Handles volume/power events while the side key is held for a configured combination. */
     fun onAuxiliaryKeyEvent(event: KeyEvent, executor: ActionExecutor): Boolean {
         synchronized(lock) {
-            if (!pressed || !activeSettings.hasConfiguredCombination) return false
+            val settings = SettingsReader.load()
+            if (!settings.enabled || settings.operationMode == OperationMode.DISABLED) return false
             val action = when (event.keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP -> activeSettings.sideVolumeUpAction
                 KeyEvent.KEYCODE_VOLUME_DOWN -> activeSettings.sideVolumeDownAction
                 KeyEvent.KEYCODE_POWER -> activeSettings.sidePowerAction
                 else -> SideKeyCombinationAction.NONE
             }
-            if (action == SideKeyCombinationAction.NONE) return false
-            when (event.action) {
-                KeyEvent.ACTION_DOWN -> {
-                    if (!combinationKeysDown.add(event.keyCode)) return true
-                    combinationTriggered = true
-                    longRunnable?.let(handler::removeCallbacks)
-                    longRunnable = null
-                    resetClickState()
-                    resetMorseState()
-                    executor.executeCombination(action)
-                    return true
+            if (pressed && activeSettings.hasConfiguredCombination && action != SideKeyCombinationAction.NONE) {
+                when (event.action) {
+                    KeyEvent.ACTION_DOWN -> {
+                        if (!combinationKeysDown.add(event.keyCode)) return true
+                        combinationTriggered = true
+                        longRunnable?.let(handler::removeCallbacks)
+                        longRunnable = null
+                        resetClickState()
+                        resetMorseState()
+                        executor.executeCombination(action)
+                        return true
+                    }
+                    KeyEvent.ACTION_UP -> {
+                        if (combinationKeysDown.remove(event.keyCode)) return true
+                    }
                 }
-                KeyEvent.ACTION_UP -> {
-                    if (combinationKeysDown.remove(event.keyCode)) return true
+                return false
+            }
+            if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+                if (settings.operationMode == OperationMode.MORSE && handleMorseAuxiliaryKey(event, executor, settings)) {
+                    return true
                 }
             }
             return false
         }
+    }
+
+    /**
+     * Adds a volume-key short/long symbol to an already started Morse sequence.
+     * A volume key is deliberately ignored while the sequence is empty so a
+     * volume press can still perform its normal system volume operation.
+     */
+    private fun handleMorseAuxiliaryKey(
+        event: KeyEvent,
+        executor: ActionExecutor,
+        settings: AppSettings
+    ): Boolean {
+        val now = SystemClock.uptimeMillis()
+        if (morseSequence.isEmpty()) return false
+        if (now - morseLastUpAt >= settings.morseCommandWindowMs && morseAuxiliaryDownAt.isEmpty()) {
+            finishMorseSequence(executor, settings)
+            return false
+        }
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            if (morseAuxiliaryDownAt.containsKey(event.keyCode)) return true
+            morseFinishRunnable?.let(handler::removeCallbacks)
+            morseFinishRunnable = null
+            morseAuxiliaryDownAt[event.keyCode] = now
+            morseAuxiliaryLongReached.remove(event.keyCode)
+            val runnable = Runnable {
+                synchronized(lock) {
+                    if (morseAuxiliaryDownAt[event.keyCode] == now &&
+                        morseAuxiliaryLongReached.add(event.keyCode) &&
+                        settings.morseLongVibrationEnabled
+                    ) {
+                        executor.vibrateInstantCue()
+                    }
+                }
+            }
+            morseAuxiliaryLongRunnables[event.keyCode] = runnable
+            handler.postDelayed(runnable, settings.morseLongPressMs)
+            return true
+        }
+        if (event.action != KeyEvent.ACTION_UP) return true
+        val downAt = morseAuxiliaryDownAt.remove(event.keyCode) ?: return true
+        morseAuxiliaryLongRunnables.remove(event.keyCode)?.let(handler::removeCallbacks)
+        val longReached = morseAuxiliaryLongReached.remove(event.keyCode)
+        val isLong = longReached || now - downAt >= settings.morseLongPressMs
+        if (isLong && !longReached && settings.morseLongVibrationEnabled) {
+            executor.vibrateInstantCue()
+        }
+        appendMorseSymbol(
+            if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+                if (isLong) 'U' else 'u'
+            } else {
+                if (isLong) 'D' else 'd'
+            },
+            executor,
+            settings
+        )
+        return true
     }
 
     fun onDown(settings: AppSettings, executor: ActionExecutor, interactive: Boolean) {
@@ -282,6 +355,7 @@ internal class SideKeyController {
                             binding != null && !hasLongerMatch) {
                             morseTriggeredWhilePressed = true
                             morseSequence.clear()
+                            MorseSequenceRuntimeState.active = false
                             morseFinishRunnable?.let(handler::removeCallbacks)
                             morseFinishRunnable = null
                             execute(
@@ -312,6 +386,7 @@ internal class SideKeyController {
         if (morseTriggeredWhilePressed) {
             morseTriggeredWhilePressed = false
             morseSequence.clear()
+            MorseSequenceRuntimeState.active = false
             morseFinishRunnable?.let(handler::removeCallbacks)
             morseFinishRunnable = null
             morseLongReached = false
@@ -322,29 +397,35 @@ internal class SideKeyController {
         if (isLong && !morseLongReached && activeSettings.morseLongVibrationEnabled) {
             executor.vibrateInstantCue()
         }
-        morseSequence.append(if (isLong) '1' else '0')
         activeInteractive = activeInteractive && interactive
-        morseLastUpAt = now
+        appendMorseSymbol(if (isLong) '1' else '0', executor, SettingsReader.load())
+    }
 
-        val current = SettingsReader.load()
-        if (!current.enabled || current.operationMode != OperationMode.MORSE) {
+    private fun appendMorseSymbol(symbol: Char, executor: ActionExecutor, settings: AppSettings) {
+        morseSequence.append(symbol)
+        MorseSequenceRuntimeState.active = true
+        morseLastUpAt = SystemClock.uptimeMillis()
+        if (!settings.enabled || settings.operationMode != OperationMode.MORSE) {
             resetMorseState()
             return
         }
         val sequence = morseSequence.toString()
-        val exactMatch = current.morseBindings.any { it.sequence == sequence }
-        val hasLongerMatch = current.morseBindings.any {
+        val exactMatch = settings.morseBindings.any { it.sequence == sequence }
+        val hasLongerMatch = settings.morseBindings.any {
             it.sequence.length > sequence.length && it.sequence.startsWith(sequence)
         }
-        if (current.morseImmediateExecutionEnabled && exactMatch && !hasLongerMatch) {
-            finishMorseSequence(executor, current)
+        if (settings.morseImmediateExecutionEnabled && exactMatch && !hasLongerMatch &&
+            !settings.hasConfiguredCombination
+        ) {
+            finishMorseSequence(executor, settings)
             return
         }
-
         val runnable = object : Runnable {
             override fun run() {
                 synchronized(lock) {
-                    if (morseFinishRunnable === this && !pressed) finishMorseSequence(executor)
+                    if (morseFinishRunnable === this && !pressed && morseAuxiliaryDownAt.isEmpty()) {
+                        finishMorseSequence(executor, settings)
+                    }
                 }
             }
         }
@@ -357,6 +438,7 @@ internal class SideKeyController {
         morseFinishRunnable = null
         val sequence = morseSequence.toString()
         morseSequence.clear()
+        MorseSequenceRuntimeState.active = false
         if (sequence.isEmpty()) return
         if (!settings.enabled || settings.operationMode != OperationMode.MORSE) return
         val binding = settings.morseBindings.firstOrNull { it.sequence == sequence }
@@ -380,7 +462,12 @@ internal class SideKeyController {
         morseThresholdRunnable = null
         morseFinishRunnable?.let(handler::removeCallbacks)
         morseFinishRunnable = null
+        morseAuxiliaryLongRunnables.values.forEach(handler::removeCallbacks)
+        morseAuxiliaryLongRunnables.clear()
+        morseAuxiliaryDownAt.clear()
+        morseAuxiliaryLongReached.clear()
         morseSequence.clear()
+        MorseSequenceRuntimeState.active = false
         morseLongReached = false
         morseTriggeredWhilePressed = false
     }

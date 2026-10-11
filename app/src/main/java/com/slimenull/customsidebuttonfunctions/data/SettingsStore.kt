@@ -519,7 +519,9 @@ object SettingsStore {
         return (0 until array.length()).mapNotNull { index ->
             val entry = array.optJSONObject(index) ?: return@mapNotNull null
             val sequence = entry.optString("sequence")
-            if (sequence.isEmpty() || sequence.any { it != '0' && it != '1' }) return@mapNotNull null
+            if (sequence.isEmpty() || sequence.first() !in "01" ||
+                sequence.any { it !in "01uUdD" }
+            ) return@mapNotNull null
             val action = runCatching { ActionType.valueOf(entry.optString("action")) }
                 .onXposedFailure("parse Morse action")
                 .getOrNull()
