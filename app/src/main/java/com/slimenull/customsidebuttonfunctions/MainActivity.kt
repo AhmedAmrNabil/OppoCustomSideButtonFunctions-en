@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
@@ -75,6 +76,7 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.VolumeUp
@@ -108,6 +110,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -151,6 +154,8 @@ import com.slimenull.customsidebuttonfunctions.model.MorseBinding
 import com.slimenull.customsidebuttonfunctions.model.OperationMode
 import com.slimenull.customsidebuttonfunctions.model.SideKeyCombinationAction
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 
 private val AppBackground = Color(0xFFF3F7FD)
@@ -208,6 +213,11 @@ private data class ActivityPreset(
     val className: String,
     val action: String = "",
     val launchInSmallWindow: Boolean = true
+)
+
+private data class InstalledApp(
+    val packageName: String,
+    val label: String
 )
 
 private val activityPresets = listOf(
@@ -1718,6 +1728,130 @@ private fun ActivityPresetPicker(onSelect: (ActivityPreset) -> Unit) {
     }
 }
 
+private fun loadInstalledApps(context: Context): List<InstalledApp> {
+    val packageManager = context.packageManager
+    val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    return packageManager.queryIntentActivities(launcherIntent, 0)
+        .asSequence()
+        .mapNotNull { resolveInfo ->
+            val packageName = resolveInfo.activityInfo?.packageName ?: return@mapNotNull null
+            val label = resolveInfo.loadLabel(packageManager)?.toString()?.trim().orEmpty()
+            InstalledApp(packageName, label.ifBlank { packageName })
+        }
+        .distinctBy { it.packageName }
+        .sortedWith(
+            compareBy<InstalledApp, String>(String.CASE_INSENSITIVE_ORDER) { it.label }
+                .thenBy { it.packageName }
+        )
+        .toList()
+}
+
+@Composable
+private fun ActivityPackagePicker(
+    currentPackage: String,
+    onSelect: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val view = LocalView.current
+    var dialogVisible by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var availableApps by remember { mutableStateOf<List<InstalledApp>?>(null) }
+    val filteredApps = remember(availableApps, query) {
+        val apps = availableApps.orEmpty()
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isEmpty()) apps else apps.filter {
+            it.label.contains(normalizedQuery, ignoreCase = true) ||
+                it.packageName.contains(normalizedQuery, ignoreCase = true)
+        }
+    }
+
+    LaunchedEffect(dialogVisible) {
+        if (dialogVisible && availableApps == null) {
+            availableApps = withContext(Dispatchers.Default) {
+                loadInstalledApps(context)
+            }
+        }
+    }
+
+    OutlinedTextField(
+        value = currentPackage,
+        onValueChange = onSelect,
+        label = { Text("包名") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            IconButton(
+                onClick = {
+                    clickSound(view)
+                    query = ""
+                    availableApps = null
+                    dialogVisible = true
+                }
+            ) {
+                Icon(Icons.Default.Apps, contentDescription = "选择应用", tint = AppBlue)
+            }
+        }
+    )
+
+    if (dialogVisible) {
+        AlertDialog(
+            onDismissRequest = { dialogVisible = false },
+            title = { Text("选择应用") },
+            text = {
+                Column(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("搜索应用") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (availableApps == null) {
+                        Text("正在加载应用列表…", color = AppMuted, modifier = Modifier.padding(16.dp))
+                    } else if (filteredApps.isEmpty()) {
+                        Text("没有找到匹配的应用", color = AppMuted, modifier = Modifier.padding(16.dp))
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp)
+                        ) {
+                            items(filteredApps, key = { it.packageName }) { app ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            clickSound(view)
+                                            onSelect(app.packageName)
+                                            dialogVisible = false
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 4.dp)
+                                ) {
+                                    Text(
+                                        app.label,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = AppText
+                                    )
+                                    Text(
+                                        app.packageName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AppText
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { dialogVisible = false }) { Text("取消") }
+            }
+        )
+    }
+}
+
 @Composable
 private fun CustomActionEditor(
     action: ActionType,
@@ -1748,7 +1882,10 @@ private fun CustomActionEditor(
         }
         ActionType.CUSTOM_ACTIVITY -> {
             ParameterCard("Activity 参数") {
-                OutlinedTextField(custom.activityPackage, { onChange(custom.copy(activityPackage = it)) }, label = { Text("包名") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                ActivityPackagePicker(
+                    currentPackage = custom.activityPackage,
+                    onSelect = { onChange(custom.copy(activityPackage = it)) }
+                )
                 OutlinedTextField(custom.activityClass, { onChange(custom.copy(activityClass = it)) }, label = { Text("Activity 类名（可选，留空使用默认 Activity）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(custom.activityAction, { onChange(custom.copy(activityAction = it)) }, label = { Text("Intent Action（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 SettingSwitchRow(
