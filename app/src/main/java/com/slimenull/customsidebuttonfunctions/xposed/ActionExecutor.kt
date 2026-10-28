@@ -340,8 +340,9 @@ internal class ActionExecutor {
     }.onXposedFailure("send ring-mode seedling command").getOrDefault(false)
 
     private fun openCamera(context: Context) {
+        // Open the camera itself, including over the lock screen, rather than request a capture result.
         context.startActivity(
-            Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)
+            Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA_SECURE)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
