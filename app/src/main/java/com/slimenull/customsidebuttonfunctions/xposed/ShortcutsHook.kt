@@ -68,7 +68,7 @@ internal object ShortcutsHook {
             runCatching {
                 val clipboard = currentContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("Shortcut Tag", tag))
-                Toast.makeText(currentContext, "快捷方式 ID 已复制到剪贴板", Toast.LENGTH_LONG).show()
+                Toast.makeText(currentContext, "Shortcut ID copied to clipboard", Toast.LENGTH_LONG).show()
                 XposedBridge.log("CustomSideButtonFunctions: shortcut tag copied")
             }.onXposedFailure("copy shortcut tag to clipboard")
         }

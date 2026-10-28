@@ -10,6 +10,8 @@ import android.view.RoundedCorner
 import android.view.SoundEffectConstants
 import android.view.View
 import android.view.ViewTreeObserver
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -208,6 +210,7 @@ private val AppColors = lightColorScheme(
 )
 
 private data class ActivityPreset(
+    @get:StringRes val titleRes: Int,
     val title: String,
     val packageName: String,
     val className: String,
@@ -222,6 +225,7 @@ private data class InstalledApp(
 
 private val activityPresets = listOf(
     ActivityPreset(
+        titleRes = R.string.preset_quick_note,
         title = "便签速记",
         packageName = "com.coloros.note",
         className = "com.nearme.note.activity.richedit.QuickNoteViewRichEditActivity"
@@ -230,10 +234,16 @@ private val activityPresets = listOf(
 
 private enum class BottomTab { HOME, OTHER, ABOUT }
 
-private enum class GestureKind(val title: String, val subtitle: String) {
-    SINGLE("单击", "按下并松开后立即触发"),
-    DOUBLE("双击", "连续两次按下并松开"),
-    LONG("长按", "按住并达到指定时间")
+private enum class GestureKind(
+    @get:StringRes val titleRes: Int,
+    @get:StringRes val subtitleRes: Int,
+    val defaultTitle: String
+) {
+    SINGLE(R.string.gesture_single_title, R.string.gesture_single_subtitle, "单击"),
+    DOUBLE(R.string.gesture_double_title, R.string.gesture_double_subtitle, "双击"),
+    LONG(R.string.gesture_long_title, R.string.gesture_long_subtitle, "长按");
+
+    val title: String get() = defaultTitle
 }
 
 private sealed interface Route {
@@ -247,6 +257,8 @@ private sealed interface Route {
 }
 
 private data class ActionChoice(val action: ActionType, val common: CommonAction? = null) {
+    @get:StringRes
+    val titleRes: Int get() = common?.titleRes ?: action.titleRes
     val title: String get() = common?.title ?: action.title
     val icon: ImageVector get() = if (common != null) Icons.Default.Tune else actionIcon(action)
 }
@@ -509,20 +521,20 @@ private fun PrimaryPageLayer(
             NavigationBarItem(
                 selected = selectedTab == BottomTab.HOME,
                 onClick = { onTabSelected(BottomTab.HOME) },
-                icon = { Icon(Icons.Default.Home, contentDescription = "首页") },
-                label = { Text("首页") }
+                icon = { Icon(Icons.Default.Home, contentDescription = stringResource(R.string.tab_home)) },
+                label = { Text(stringResource(R.string.tab_home)) }
             )
             NavigationBarItem(
                 selected = selectedTab == BottomTab.OTHER,
                 onClick = { onTabSelected(BottomTab.OTHER) },
-                icon = { Icon(Icons.Default.MoreHoriz, contentDescription = "其他") },
-                label = { Text("其他") }
+                icon = { Icon(Icons.Default.MoreHoriz, contentDescription = stringResource(R.string.tab_other)) },
+                label = { Text(stringResource(R.string.tab_other)) }
             )
             NavigationBarItem(
                 selected = selectedTab == BottomTab.ABOUT,
                 onClick = { onTabSelected(BottomTab.ABOUT) },
-                icon = { Icon(Icons.Default.Info, contentDescription = "关于") },
-                label = { Text("关于") }
+                icon = { Icon(Icons.Default.Info, contentDescription = stringResource(R.string.tab_about)) },
+                label = { Text(stringResource(R.string.tab_about)) }
             )
         }
     }
@@ -573,7 +585,7 @@ private fun HomeScreen(
     val view = LocalView.current
     Column(Modifier.fillMaxSize().padding(padding)) {
         Text(
-            "侧键功能设置",
+            stringResource(R.string.side_key_settings_title),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
@@ -592,14 +604,14 @@ private fun HomeScreen(
                         IconBadge(Icons.Default.Tune)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("启用自定义侧键功能", fontWeight = FontWeight.SemiBold)
-                            Text(if (settings.enabled) "当前状态：已启用" else "当前状态：已停用", style = MaterialTheme.typography.bodySmall, color = if (settings.enabled) AppGreen else AppMuted)
+                            Text(stringResource(R.string.enable_side_key_functions), fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(if (settings.enabled) R.string.status_enabled else R.string.status_disabled), style = MaterialTheme.typography.bodySmall, color = if (settings.enabled) AppGreen else AppMuted)
                         }
                         Switch(settings.enabled, { clickSound(view); persist(settings.copy(enabled = it)) })
                     }
                 }
             }
-            item { SectionLabel("操作模式") }
+            item { SectionLabel(stringResource(R.string.section_operation_mode)) }
             item {
                 val modeColors = SegmentedButtonDefaults.colors(
                     activeContainerColor = AppBlueSoft,
@@ -618,8 +630,8 @@ private fun HomeScreen(
                                 index, OperationMode.entries.size, baseShape = RoundedCornerShape(8.dp)
                             ),
                             colors = modeColors,
-                            modifier = Modifier.weight(if (index == 0) 2f else 3f),
-                            label = { Text(mode.title) }
+                            modifier = Modifier.weight(1f),
+                            label = { Text(stringResource(mode.titleRes)) }
                         )
                     }
                 }
@@ -647,7 +659,7 @@ private fun HomeScreen(
                         Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        SectionLabel(mode.title)
+                        SectionLabel(stringResource(mode.titleRes))
                         when (mode) {
                             OperationMode.DISABLED -> Unit
                             OperationMode.SIMPLE -> {
@@ -656,7 +668,7 @@ private fun HomeScreen(
                                 GestureRow(GestureKind.LONG, settings.longAction, settings.longCustom, navigate)
                             }
                             OperationMode.MORSE -> {
-                                SettingRow(Icons.Default.Code, "摩斯电码设置", "${settings.morseBindings.size} 条指令") {
+                                SettingRow(Icons.Default.Code, stringResource(R.string.morse_code_settings), stringResource(R.string.morse_commands_count, settings.morseBindings.size)) {
                                     navigate(Route.Morse)
                                 }
                             }
@@ -664,12 +676,12 @@ private fun HomeScreen(
                     }
                 }
             }
-            item { SectionLabel("其他设置") }
+            item { SectionLabel(stringResource(R.string.section_other_settings)) }
             item {
-                SettingRow(Icons.Default.Vibration, "振动与提示", "配置触发振动和 Toast 提示") { navigate(Route.Feedback) }
+                SettingRow(Icons.Default.Vibration, stringResource(R.string.setting_vibration_feedback), stringResource(R.string.setting_vibration_feedback_desc)) { navigate(Route.Feedback) }
             }
             item {
-                SettingRow(Icons.Default.Settings, "高级设置", "设备输入与息屏行为") { navigate(Route.Advanced) }
+                SettingRow(Icons.Default.Settings, stringResource(R.string.setting_advanced), stringResource(R.string.setting_advanced_desc)) { navigate(Route.Advanced) }
             }
         }
     }
@@ -683,11 +695,11 @@ private fun GestureRow(
     navigate: (Route) -> Unit
 ) {
     val title = when {
-        action == ActionType.NONE -> "未配置"
-        action == ActionType.COMMON_FUNCTION -> custom.commonAction.title
-        else -> action.title
+        action == ActionType.NONE -> stringResource(R.string.not_configured)
+        action == ActionType.COMMON_FUNCTION -> stringResource(custom.commonAction.titleRes)
+        else -> stringResource(action.titleRes)
     }
-    SettingRow(gestureIcon(kind), kind.title, title) {
+    SettingRow(gestureIcon(kind), stringResource(kind.titleRes), title) {
         navigate(Route.Gesture(kind))
     }
 }
@@ -715,7 +727,7 @@ private fun GestureScreen(
     val currentWakeScreen = selectedWakeScreen(kind, settings)
     val currentVibration = selectedVibration(kind, settings)
     Column(Modifier.fillMaxSize().padding(padding)) {
-        BackTitle(kind.title, back)
+        BackTitle(stringResource(kind.titleRes), back)
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
@@ -724,11 +736,11 @@ private fun GestureScreen(
           item {
             IntroCard(
                 icon = gestureIcon(kind),
-                title = kind.title,
+                title = stringResource(kind.titleRes),
                 description = when (kind) {
-                    GestureKind.SINGLE -> "按下并松开后立即触发。如果未配置双击，则无需等待。"
-                    GestureKind.DOUBLE -> "连续两次按下并松开，需要在指定的等待时间内完成第二次按下。"
-                    GestureKind.LONG -> "按下并保持达到指定时间后触发，松开不会再次触发单击。"
+                    GestureKind.SINGLE -> stringResource(R.string.gesture_single_hint)
+                    GestureKind.DOUBLE -> stringResource(R.string.gesture_double_hint)
+                    GestureKind.LONG -> stringResource(R.string.gesture_long_hint)
                 }
             )
           }
@@ -736,7 +748,7 @@ private fun GestureScreen(
             item {
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(14.dp)) {
-                        Text(if (kind == GestureKind.DOUBLE) "等待时间" else "按下时长", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(if (kind == GestureKind.DOUBLE) R.string.gesture_wait_time else R.string.gesture_press_duration), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Slider(
                                 value = sliderValue,
@@ -775,7 +787,7 @@ private fun GestureScreen(
                 }
             }
           }
-          item { SectionLabel("选择要执行的功能") }
+          item { SectionLabel(stringResource(R.string.select_action_to_execute)) }
           item {
             val selected = ActionChoice(
                 currentAction,
@@ -796,16 +808,16 @@ private fun GestureScreen(
                 }
             }
           }
-          item { SectionLabel("选项") }
+          item { SectionLabel(stringResource(R.string.section_options)) }
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp)) {
-                    SettingSwitchRow("执行时亮屏", null, currentWakeScreen) {
+                    SettingSwitchRow(stringResource(R.string.option_wake_screen), null, currentWakeScreen) {
                         persist(updateWakeScreen(kind, settings, it))
                     }
                     if (!settings.vibrationEnabled) {
                         HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEAF0F7))
-                        SettingSwitchRow("触发时振动", null, currentVibration) {
+                        SettingSwitchRow(stringResource(R.string.option_vibrate_on_trigger), null, currentVibration) {
                             persist(updateVibration(kind, settings, it))
                         }
                     }
@@ -813,7 +825,7 @@ private fun GestureScreen(
             }
           }
           item {
-            InfoCard(if (kind == GestureKind.DOUBLE && settings.doubleAction == ActionType.NONE) "双击未配置，单击松开后会立即触发。" else if (kind == GestureKind.LONG) "长按触发后不会再触发单击或双击。" else "修改后会立即保存并由 Xposed 模块热加载。")
+            InfoCard(if (kind == GestureKind.DOUBLE && settings.doubleAction == ActionType.NONE) stringResource(R.string.gesture_hint_single_no_double) else if (kind == GestureKind.LONG) stringResource(R.string.gesture_hint_long_exclusive) else stringResource(R.string.changes_saved_hot_reload))
           }
         }
     }
@@ -832,7 +844,7 @@ private fun MorseScreen(
     var deleting by remember { mutableStateOf<MorseBinding?>(null) }
 
     Column(Modifier.fillMaxSize().padding(padding)) {
-        BackTitle("摩斯电码操作", back)
+        BackTitle(stringResource(R.string.morse_code_operations), back)
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
@@ -841,16 +853,16 @@ private fun MorseScreen(
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
-                    SectionLabel("指令映射")
+                    SectionLabel(stringResource(R.string.morse_command_mappings))
                     Button(onClick = { clickSound(view); editing = null; editorOpen = true }) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
-                        Text("添加")
+                        Text(stringResource(R.string.btn_add))
                     }
                 }
             }
             if (settings.morseBindings.isEmpty()) {
-                item { Text("暂无指令", color = AppMuted, modifier = Modifier.padding(vertical = 16.dp)) }
+                item { Text(stringResource(R.string.morse_no_commands), color = AppMuted, modifier = Modifier.padding(vertical = 16.dp)) }
             }
             items(settings.morseBindings, key = { it.sequence }) { binding ->
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
@@ -867,24 +879,24 @@ private fun MorseScreen(
                                 overflow = TextOverflow.Ellipsis)
                         }
                         IconButton(onClick = { clickSound(view); editing = binding; editorOpen = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "编辑指令")
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_edit_command))
                         }
                         IconButton(onClick = { clickSound(view); deleting = binding }) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "删除指令")
+                            Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.action_delete_command))
                         }
                     }
                 }
             }
-            item { SectionLabel("按键设置") }
+            item { SectionLabel(stringResource(R.string.morse_key_settings)) }
             item {
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(14.dp)) {
-                        SettingSwitchRow("按下时振动", null, settings.morsePressVibrationEnabled) {
+                        SettingSwitchRow(stringResource(R.string.morse_vibrate_on_press), null, settings.morsePressVibrationEnabled) {
                             persist(settings.copy(morsePressVibrationEnabled = it))
                         }
                         HorizontalDivider(color = Color(0xFFEAF0F7))
                         SettingSwitchRow(
-                            "持续按到长按时间时振动",
+                            stringResource(R.string.morse_vibrate_on_long_press),
                             null,
                             settings.morseLongVibrationEnabled
                         ) {
@@ -892,7 +904,7 @@ private fun MorseScreen(
                         }
                         HorizontalDivider(color = Color(0xFFEAF0F7))
                         SettingSwitchRow(
-                            "尽可能立即执行操作",
+                            stringResource(R.string.morse_immediate_execution),
                             null,
                             settings.morseImmediateExecutionEnabled
                         ) {
@@ -901,14 +913,14 @@ private fun MorseScreen(
                     }
                 }
             }
-            item { SectionLabel("判定时间") }
+            item { SectionLabel(stringResource(R.string.section_timing)) }
             item {
-                MorseTimingCard("长按持续时间", settings.morseLongPressMs) {
+                MorseTimingCard(stringResource(R.string.timing_long_press_duration), settings.morseLongPressMs) {
                     persist(settings.copy(morseLongPressMs = it))
                 }
             }
             item {
-                MorseTimingCard("指令判断等待时间", settings.morseCommandWindowMs) {
+                MorseTimingCard(stringResource(R.string.timing_command_timeout), settings.morseCommandWindowMs) {
                     persist(settings.copy(morseCommandWindowMs = it))
                 }
             }
@@ -934,15 +946,15 @@ private fun MorseScreen(
     deleting?.let { binding ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("删除指令 ${binding.sequence}？") },
+            title = { Text(stringResource(R.string.dialog_delete_command_title, binding.sequence)) },
             text = { Text(morseActionTitle(binding)) },
             confirmButton = {
                 TextButton(onClick = {
                     persist(settings.copy(morseBindings = settings.morseBindings.filterNot { it.sequence == binding.sequence }))
                     deleting = null
-                }) { Text("删除") }
+                }) { Text(stringResource(R.string.btn_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.btn_cancel)) } }
         )
     }
 }
@@ -984,18 +996,20 @@ private fun MorseTimingCard(title: String, value: Long, onChange: (Long) -> Unit
     }
 }
 
+@Composable
 private fun morseActionTitle(binding: MorseBinding): String =
-    if (binding.action == ActionType.COMMON_FUNCTION) binding.custom.commonAction.title else binding.action.title
+    if (binding.action == ActionType.COMMON_FUNCTION) stringResource(binding.custom.commonAction.titleRes) else stringResource(binding.action.titleRes)
 
+@Composable
 private fun morseSequenceTitle(sequence: String): String =
     sequence.map {
         when (it) {
-            '0' -> "短侧键"
-            '1' -> "长侧键"
-            'u' -> "短上"
-            'U' -> "长上"
-            'd' -> "短下"
-            'D' -> "长下"
+            '0' -> stringResource(R.string.morse_key_short_side)
+            '1' -> stringResource(R.string.morse_key_long_side)
+            'u' -> stringResource(R.string.morse_key_short_up)
+            'U' -> stringResource(R.string.morse_key_long_up)
+            'd' -> stringResource(R.string.morse_key_short_down)
+            'D' -> stringResource(R.string.morse_key_long_down)
             else -> it.toString()
         }
     }.joinToString(" ")
@@ -1016,11 +1030,11 @@ private fun MorseBindingEditorDialog(
     }
     var vibrationEnabled by remember(original) { mutableStateOf(original?.vibrationEnabled ?: false) }
     var showError by remember(original) { mutableStateOf(false) }
-    val error = when {
-        sequence.isEmpty() -> "请输入指令序列"
-        sequence.first() !in "01" -> "序列必须以侧键开始"
-        sequence.any { it !in "01uUdD" } -> "序列只能包含 0、1、u、U、d、D"
-        existing.any { it.sequence == sequence && it.sequence != original?.sequence } -> "该序列已存在"
+    val errorRes = when {
+        sequence.isEmpty() -> R.string.morse_input_sequence_prompt
+        sequence.first() !in "01" -> R.string.morse_seq_error_start_side
+        sequence.any { it !in "01uUdD" } -> R.string.morse_seq_error_chars
+        existing.any { it.sequence == sequence && it.sequence != original?.sequence } -> R.string.morse_seq_error_exists
         else -> null
     }
     val selected = ActionChoice(action, if (action == ActionType.COMMON_FUNCTION) custom.commonAction else null)
@@ -1037,16 +1051,16 @@ private fun MorseBindingEditorDialog(
         ) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(if (original == null) "添加指令" else "编辑指令",
+                Text(if (original == null) stringResource(R.string.dialog_add_command_title) else stringResource(R.string.dialog_edit_command_title),
                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = sequence,
                     onValueChange = { sequence = it.filter { symbol -> symbol in "01uUdD" } },
-                    label = { Text("指令序列（0/1 侧键，u/U 上键，d/D 下键）") },
+                    label = { Text(stringResource(R.string.morse_seq_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     singleLine = true,
-                    isError = showError && error != null,
-                    supportingText = if (showError && error != null) { { Text(error) } } else null,
+                    isError = showError && errorRes != null,
+                    supportingText = if (showError && errorRes != null) { { Text(stringResource(errorRes)) } } else null,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Column(modifier = Modifier.fillMaxWidth(),
@@ -1056,15 +1070,15 @@ private fun MorseBindingEditorDialog(
                         OutlinedButton(onClick = { clickSound(view); sequence += '0' },
                             modifier = Modifier.weight(1f),
                             shape = keyShape) {
-                            Text("短侧键")
+                            Text(stringResource(R.string.morse_key_short_side))
                         }
                         OutlinedButton(onClick = { clickSound(view); sequence += '1' },
                             modifier = Modifier.weight(1f),
                             shape = keyShape) {
-                            Text("长侧键")
+                            Text(stringResource(R.string.morse_key_long_side))
                         }
                         IconButton(onClick = { clickSound(view); if (sequence.isNotEmpty()) sequence = sequence.dropLast(1) }) {
-                            Icon(Icons.Default.Backspace, contentDescription = "删除末位")
+                            Icon(Icons.Default.Backspace, contentDescription = stringResource(R.string.morse_key_backspace))
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1073,29 +1087,29 @@ private fun MorseBindingEditorDialog(
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(0.dp),
                             shape = keyShape) {
-                            Text("短上")
+                            Text(stringResource(R.string.morse_key_short_up))
                         }
                         OutlinedButton(onClick = { clickSound(view); sequence += 'U' },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(0.dp),
                             shape = keyShape) {
-                            Text("长上")
+                            Text(stringResource(R.string.morse_key_long_up))
                         }
                         OutlinedButton(onClick = { clickSound(view); sequence += 'd' },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(0.dp),
                             shape = keyShape) {
-                            Text("短下")
+                            Text(stringResource(R.string.morse_key_short_down))
                         }
                         OutlinedButton(onClick = { clickSound(view); sequence += 'D' },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(0.dp),
                             shape = keyShape) {
-                            Text("长下")
+                            Text(stringResource(R.string.morse_key_long_down))
                         }
                     }
                 }
-                SectionLabel("执行动作")
+                SectionLabel(stringResource(R.string.label_execute_action))
                 ActionPicker(selected, morseActionChoices) { choice ->
                     action = choice.action
                     wakeScreen = choice.action == ActionType.CYCLE_RINGER
@@ -1106,14 +1120,14 @@ private fun MorseBindingEditorDialog(
                         ActionType.CUSTOM_URL, ActionType.SHELL_COMMAND)) {
                     CustomActionEditor(action, custom) { custom = it }
                 }
-                SectionLabel("选项")
+                SectionLabel(stringResource(R.string.section_options))
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(14.dp)) {
-                        SettingSwitchRow("执行时亮屏", null, wakeScreen) { wakeScreen = it }
+                        SettingSwitchRow(stringResource(R.string.option_wake_screen), null, wakeScreen) { wakeScreen = it }
                         if (!globalVibrationEnabled) {
                             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEAF0F7))
                             SettingSwitchRow(
-                                "触发时振动",
+                                stringResource(R.string.option_vibrate_on_trigger),
                                 null,
                                 vibrationEnabled
                             ) { vibrationEnabled = it }
@@ -1121,11 +1135,11 @@ private fun MorseBindingEditorDialog(
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) }
                     Button(onClick = {
                         showError = true
-                        if (error == null) onSave(MorseBinding(sequence, action, custom, wakeScreen, vibrationEnabled))
-                    }) { Text("保存") }
+                        if (errorRes == null) onSave(MorseBinding(sequence, action, custom, wakeScreen, vibrationEnabled))
+                    }) { Text(stringResource(R.string.btn_save)) }
                 }
             }
         }
@@ -1135,17 +1149,17 @@ private fun MorseBindingEditorDialog(
 @Composable
 private fun FeedbackScreen(settings: AppSettings, persist: (AppSettings) -> Unit, back: () -> Unit, padding: PaddingValues) {
     Column(Modifier.fillMaxSize().padding(padding)) {
-        BackTitle("振动与提示", back)
+        BackTitle(stringResource(R.string.setting_vibration_feedback), back)
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          item { SectionLabel("振动设置") }
+          item { SectionLabel(stringResource(R.string.feedback_vibration_settings)) }
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp)) {
-                    SettingSwitchRow("触发时振动", null, settings.vibrationEnabled) {
+                    SettingSwitchRow(stringResource(R.string.option_vibrate_on_trigger), null, settings.vibrationEnabled) {
                         persist(
                             settings.copy(vibrationEnabled = it)
                         )
@@ -1153,11 +1167,11 @@ private fun FeedbackScreen(settings: AppSettings, persist: (AppSettings) -> Unit
                 }
             }
           }
-          item { SectionLabel("Toast 提示") }
+          item { SectionLabel(stringResource(R.string.feedback_toast_notifications)) }
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingSwitchRow("显示 Toast 提示", null, settings.toastEnabled) {
+                    SettingSwitchRow(stringResource(R.string.feedback_show_toast), null, settings.toastEnabled) {
                         persist(
                             settings.copy(toastEnabled = it)
                         )
@@ -1165,25 +1179,25 @@ private fun FeedbackScreen(settings: AppSettings, persist: (AppSettings) -> Unit
                     OutlinedTextField(
                         value = settings.toastText,
                         onValueChange = { persist(settings.copy(toastText = it)) },
-                        label = { Text("提示内容") },
+                        label = { Text(stringResource(R.string.feedback_toast_message)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
           }
-          item { InfoCard("Toast 提示会在系统框架进程中显示，具体样式由当前 ROM 决定。") }
-          item { SectionLabel("未知摩斯电码序列提示") }
+          item { InfoCard(stringResource(R.string.feedback_toast_hint)) }
+          item { SectionLabel(stringResource(R.string.feedback_unknown_morse_title)) }
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingSwitchRow("Toast 与双震动", null, settings.unknownMorseFeedbackEnabled) {
+                    SettingSwitchRow(stringResource(R.string.feedback_unknown_morse_toast_and_vibe), null, settings.unknownMorseFeedbackEnabled) {
                         persist(settings.copy(unknownMorseFeedbackEnabled = it))
                     }
                     OutlinedTextField(
                         value = settings.unknownMorseToastText,
                         onValueChange = { persist(settings.copy(unknownMorseToastText = it)) },
-                        label = { Text("提示内容") },
+                        label = { Text(stringResource(R.string.feedback_toast_message)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1199,7 +1213,7 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
     val view = LocalView.current
     Column(Modifier.fillMaxSize().padding(padding)) {
         Text(
-            "其他",
+            stringResource(R.string.tab_other),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
@@ -1209,30 +1223,30 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item { SectionLabel("组合键") }
+            item { SectionLabel(stringResource(R.string.section_key_combinations)) }
             item {
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SettingSwitchRow(
-                            title = "启用组合键",
+                            title = stringResource(R.string.enable_key_combinations),
                             description = null,
                             checked = settings.combinationEnabled
                         ) { persist(settings.copy(combinationEnabled = it)) }
                         if (settings.combinationEnabled) {
                             HorizontalDivider(color = Color(0xFFEAF0F7))
-                            SideKeyCombinationPicker("侧键+上键", settings.sideVolumeUpAction) {
+                            SideKeyCombinationPicker(stringResource(R.string.combo_side_vol_up), settings.sideVolumeUpAction) {
                                 persist(settings.copy(sideVolumeUpAction = it))
                             }
-                            SideKeyCombinationPicker("侧键+下键", settings.sideVolumeDownAction) {
+                            SideKeyCombinationPicker(stringResource(R.string.combo_side_vol_down), settings.sideVolumeDownAction) {
                                 persist(settings.copy(sideVolumeDownAction = it))
                             }
-                            SideKeyCombinationPicker("侧键+电源键", settings.sidePowerAction) {
+                            SideKeyCombinationPicker(stringResource(R.string.combo_side_power), settings.sidePowerAction) {
                                 persist(settings.copy(sidePowerAction = it))
                             }
                             HorizontalDivider(color = Color(0xFFEAF0F7))
                             SettingSwitchRow(
-                                title = "震动反馈",
-                                description = "组合键触发时振动一次",
+                                title = stringResource(R.string.feedback_vibration),
+                                description = stringResource(R.string.feedback_vibrate_on_combo),
                                 checked = settings.combinationVibrationEnabled
                             ) { persist(settings.copy(combinationVibrationEnabled = it)) }
                         }
@@ -1240,13 +1254,13 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
                 }
             }
             item {
-                InfoCard("组合键会在侧键按住期间接管已配置的音量键或电源键事件。")
+                InfoCard(stringResource(R.string.combo_hint))
             }
-            item { SectionLabel("输入法光标") }
+            item { SectionLabel(stringResource(R.string.section_ime_cursor)) }
             item {
                 Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("音量键控制光标", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.cursor_vol_control), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                         val cursorColors = SegmentedButtonDefaults.colors(
                             activeContainerColor = AppBlueSoft,
                             activeContentColor = AppBlueDark,
@@ -1264,15 +1278,10 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
                                         index, CursorControlMode.entries.size, baseShape = RoundedCornerShape(8.dp)
                                     ),
                                     colors = cursorColors,
-                                    modifier = Modifier.weight(
-                                        when (index) {
-                                            0 -> 2f
-                                            else -> 3f
-                                        }
-                                    ),
+                                    modifier = Modifier.weight(1f),
                                     label = {
                                         Text(
-                                            mode.title,
+                                            stringResource(mode.titleRes),
                                             maxLines = 2,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                         )
@@ -1287,7 +1296,7 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
                         if (settings.cursorLongPressAction != CursorLongPressAction.NONE) {
                             HorizontalDivider(color = Color(0xFFEAF0F7))
                             CursorTimingSetting(
-                                title = "长按判定延时",
+                                title = stringResource(R.string.cursor_long_press_delay),
                                 value = settings.cursorLongPressMs,
                                 minValue = MIN_CURSOR_LONG_PRESS_MS,
                                 maxValue = MAX_CURSOR_LONG_PRESS_MS,
@@ -1296,11 +1305,11 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
                             if (settings.cursorLongPressAction == CursorLongPressAction.REPEAT) {
                                 HorizontalDivider(color = Color(0xFFEAF0F7))
                                 CursorTimingSetting(
-                                    title = "连续移动频率",
+                                    title = stringResource(R.string.cursor_repeat_interval),
                                     value = settings.cursorRepeatIntervalMs,
                                     minValue = MIN_CURSOR_REPEAT_INTERVAL_MS,
                                     maxValue = MAX_CURSOR_REPEAT_INTERVAL_MS,
-                                    suffix = "ms/次",
+                                    suffix = stringResource(R.string.unit_ms_per_step),
                                     onChange = { persist(settings.copy(cursorRepeatIntervalMs = it)) }
                                 )
                             }
@@ -1309,7 +1318,7 @@ private fun OtherScreen(settings: AppSettings, persist: (AppSettings) -> Unit, p
                 }
             }
             item {
-                InfoCard("设备亮屏、未锁屏、未通话且输入法窗口可见时接管音量键；隐藏输入法后恢复普通音量调节。")
+                InfoCard(stringResource(R.string.cursor_hint))
             }
         }
     }
@@ -1338,9 +1347,9 @@ private fun SideKeyCombinationPicker(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(title, fontWeight = FontWeight.SemiBold)
-                    Text(selected.title, style = MaterialTheme.typography.bodySmall, color = AppMuted)
+                    Text(stringResource(selected.titleRes), style = MaterialTheme.typography.bodySmall, color = AppMuted)
                 }
-                Icon(Icons.Default.ExpandMore, contentDescription = "选择组合键动作", tint = AppMuted)
+                Icon(Icons.Default.ExpandMore, contentDescription = stringResource(R.string.select_key_combo_action), tint = AppMuted)
             }
         }
         ExposedDropdownMenu(
@@ -1350,9 +1359,9 @@ private fun SideKeyCombinationPicker(
         ) {
             SideKeyCombinationAction.entries.forEach { action ->
                 DropdownMenuItem(
-                    text = { Text(action.title) },
+                    text = { Text(stringResource(action.titleRes)) },
                     trailingIcon = if (action == selected) {
-                        { Icon(Icons.Default.CheckCircle, contentDescription = "已选择", tint = AppBlue) }
+                        { Icon(Icons.Default.CheckCircle, contentDescription = stringResource(R.string.label_selected), tint = AppBlue) }
                     } else null,
                     onClick = {
                         clickSound(view)
@@ -1386,16 +1395,16 @@ private fun CursorLongPressPicker(
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("长按操作", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.cursor_long_press_action), fontWeight = FontWeight.SemiBold)
                     Text(
-                        selected.title,
+                        stringResource(selected.titleRes),
                         style = MaterialTheme.typography.bodySmall,
                         color = AppMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Icon(Icons.Default.ExpandMore, contentDescription = "选择长按操作", tint = AppMuted)
+                Icon(Icons.Default.ExpandMore, contentDescription = stringResource(R.string.select_long_press_action), tint = AppMuted)
             }
         }
         ExposedDropdownMenu(
@@ -1405,9 +1414,9 @@ private fun CursorLongPressPicker(
         ) {
             CursorLongPressAction.entries.forEach { action ->
                 DropdownMenuItem(
-                    text = { Text(action.title) },
+                    text = { Text(stringResource(action.titleRes)) },
                     trailingIcon = if (action == selected) {
-                        { Icon(Icons.Default.CheckCircle, contentDescription = "已选择", tint = AppBlue) }
+                        { Icon(Icons.Default.CheckCircle, contentDescription = stringResource(R.string.label_selected), tint = AppBlue) }
                     } else null,
                     onClick = {
                         clickSound(view)
@@ -1468,51 +1477,55 @@ private fun CursorTimingSetting(
 @Composable
 private fun AdvancedScreen(settings: AppSettings, persist: (AppSettings) -> Unit, back: () -> Unit, padding: PaddingValues) {
     Column(Modifier.fillMaxSize().padding(padding)) {
-        BackTitle("高级设置", back)
+        BackTitle(stringResource(R.string.setting_advanced), back)
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          item { SectionLabel("系统行为") }
+          item { SectionLabel(stringResource(R.string.advanced_system_behavior)) }
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp)) {
                     SettingSwitchRow(
-                        "优先直接执行 su 指令",
-                        "需要应用拥有 root 权限；su 执行失败后会尝试 Shizuku。",
+                        stringResource(R.string.advanced_prefer_su),
+                        stringResource(R.string.advanced_prefer_su_desc),
                         settings.preferSuForShellCommands
                     ) { persist(settings.copy(preferSuForShellCommands = it)) }
                     HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEAF0F7))
-                    SettingSwitchRow("息屏时唤醒设备", "执行指令时, 使屏幕亮起. 若不启用此项, 你也可以在指令选项中单独配置.", settings.wakeScreenWhenOff) {
+                    SettingSwitchRow(
+                        stringResource(R.string.advanced_wake_screen),
+                        stringResource(R.string.advanced_wake_screen_desc),
+                        settings.wakeScreenWhenOff
+                    ) {
                         persist(
                             settings.copy(wakeScreenWhenOff = it)
                         )
                     }
                     HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0xFFEAF0F7))
-                    Text("按键事件来源", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.advanced_key_event_source), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     Text("Oplus StrategyActionButtonKeyLaunchApp", style = MaterialTheme.typography.bodySmall, color = AppMuted)
                 }
             }
           }
-          item { SectionLabel("输入设备") }
+          item { SectionLabel(stringResource(R.string.advanced_input_device)) }
           item {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = settings.inputDevicePath,
                         onValueChange = { persist(settings.copy(inputDevicePath = it)) },
-                        label = { Text("设备路径") },
+                        label = { Text(stringResource(R.string.advanced_device_path)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    NumberField(settings.keyCode.toString(), "按键码") {
+                    NumberField(settings.keyCode.toString(), stringResource(R.string.advanced_key_code)) {
                         it.toIntOrNull()?.let { code -> persist(settings.copy(keyCode = code)) }
                     }
                 }
             }
           }
-          item { InfoCard("默认路径为 /dev/input/event0，按键码为 735。模块会优先使用 Oplus 系统策略 hook。") }
+          item { InfoCard(stringResource(R.string.advanced_device_hint)) }
         }
     }
 }
@@ -1522,7 +1535,7 @@ private fun AboutScreen(padding: PaddingValues) {
     val context = LocalContext.current
     val view = LocalView.current
     Column(Modifier.fillMaxSize().padding(padding)) {
-        Text("关于", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp))
+        Text(stringResource(R.string.tab_about), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp))
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
@@ -1533,16 +1546,16 @@ private fun AboutScreen(padding: PaddingValues) {
             Spacer(Modifier.height(34.dp))
             IconBadge(Icons.Default.Tune, size = 76.dp, iconSize = 38.dp)
             Spacer(Modifier.height(16.dp))
-            Text("一加侧键自定义功能", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("让你的侧键，做更多的事", color = AppMuted, modifier = Modifier.padding(top = 6.dp))
+            Text(stringResource(R.string.about_app_name), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.about_app_slogan), color = AppMuted, modifier = Modifier.padding(top = 6.dp))
             Text("com.slimenull.customsidebuttonfunctions", style = MaterialTheme.typography.bodySmall, color = AppMuted, modifier = Modifier.padding(top = 8.dp))
-            Text("版本 ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = AppMuted)
+            Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = AppMuted)
           }
            item {
              Spacer(Modifier.height(22.dp))
              Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text("开发者", style = MaterialTheme.typography.labelMedium, color = AppMuted)
+                     Text(stringResource(R.string.about_developer), style = MaterialTheme.typography.labelMedium, color = AppMuted)
                     Text("SlimeNull Issac", modifier = Modifier.padding(top = 4.dp))
                  }
              }
@@ -1561,7 +1574,7 @@ private fun AboutScreen(padding: PaddingValues) {
                  ) {
                      Icon(Icons.Default.Code, contentDescription = null)
                      Spacer(Modifier.width(6.dp))
-                     Text("许可证")
+                     Text(stringResource(R.string.about_license))
                  }
                  OutlinedButton(
                      onClick = {
@@ -1572,7 +1585,7 @@ private fun AboutScreen(padding: PaddingValues) {
                  ) {
                      Icon(Icons.Default.OpenInNew, contentDescription = null)
                      Spacer(Modifier.width(6.dp))
-                     Text("仓库")
+                     Text(stringResource(R.string.about_repository))
                  }
              }
            }
@@ -1602,7 +1615,7 @@ private fun openExternalUrl(context: Context, url: String) {
 private fun BackTitle(title: String, back: () -> Unit) {
     val view = LocalView.current
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { clickSound(view); back() }) { Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = AppText) }
+        IconButton(onClick = { clickSound(view); back() }) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.btn_back), tint = AppText) }
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     }
 }
@@ -1670,8 +1683,8 @@ private fun ActionPicker(
             ) {
                 IconBadge(selected.icon, size = 34.dp, iconSize = 19.dp)
                 Spacer(Modifier.width(12.dp))
-                Text(selected.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                Icon(Icons.Default.ExpandMore, contentDescription = "选择功能", tint = AppMuted)
+                Text(stringResource(selected.titleRes), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Icon(Icons.Default.ExpandMore, contentDescription = stringResource(R.string.cd_select_action), tint = AppMuted)
             }
         }
         ExposedDropdownMenu(
@@ -1681,10 +1694,10 @@ private fun ActionPicker(
         ) {
             choices.forEach { choice ->
                 DropdownMenuItem(
-                    text = { Text(choice.title) },
+                    text = { Text(stringResource(choice.titleRes)) },
                     leadingIcon = { Icon(choice.icon, contentDescription = null) },
                     trailingIcon = if (choice == selected) {
-                        { Icon(Icons.Default.CheckCircle, contentDescription = "已选择", tint = AppBlue) }
+                        { Icon(Icons.Default.CheckCircle, contentDescription = stringResource(R.string.cd_selected), tint = AppBlue) }
                     } else null,
                     onClick = {
                         clickSound(view)
@@ -1706,8 +1719,8 @@ private fun ActivityPresetPicker(onSelect: (ActivityPreset) -> Unit) {
             onClick = { clickSound(view); expanded = !expanded },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("载入预设", modifier = Modifier.weight(1f))
-            Icon(Icons.Default.ExpandMore, contentDescription = "选择预设")
+            Text(stringResource(R.string.load_preset), modifier = Modifier.weight(1f))
+            Icon(Icons.Default.ExpandMore, contentDescription = stringResource(R.string.cd_select_preset))
         }
         DropdownMenu(
             expanded = expanded,
@@ -1716,7 +1729,7 @@ private fun ActivityPresetPicker(onSelect: (ActivityPreset) -> Unit) {
         ) {
             activityPresets.forEach { preset ->
                 DropdownMenuItem(
-                    text = { Text(preset.title) },
+                    text = { Text(stringResource(preset.titleRes)) },
                     onClick = {
                         clickSound(view)
                         expanded = false
@@ -1776,7 +1789,7 @@ private fun ActivityPackagePicker(
     OutlinedTextField(
         value = currentPackage,
         onValueChange = onSelect,
-        label = { Text("包名") },
+        label = { Text(stringResource(R.string.field_package_name)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
         trailingIcon = {
@@ -1788,7 +1801,7 @@ private fun ActivityPackagePicker(
                     dialogVisible = true
                 }
             ) {
-                Icon(Icons.Default.Apps, contentDescription = "选择应用", tint = AppBlue)
+                Icon(Icons.Default.Apps, contentDescription = stringResource(R.string.cd_select_app), tint = AppBlue)
             }
         }
     )
@@ -1796,7 +1809,7 @@ private fun ActivityPackagePicker(
     if (dialogVisible) {
         AlertDialog(
             onDismissRequest = { dialogVisible = false },
-            title = { Text("选择应用") },
+            title = { Text(stringResource(R.string.title_select_app)) },
             text = {
                 Column(Modifier.fillMaxWidth()) {
                     OutlinedTextField(
@@ -1804,14 +1817,14 @@ private fun ActivityPackagePicker(
                         onValueChange = { query = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        label = { Text("搜索应用") },
+                        label = { Text(stringResource(R.string.search_apps)) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
                     )
                     Spacer(Modifier.height(8.dp))
                     if (availableApps == null) {
-                        Text("正在加载应用列表…", color = AppMuted, modifier = Modifier.padding(16.dp))
+                        Text(stringResource(R.string.loading_apps), color = AppMuted, modifier = Modifier.padding(16.dp))
                     } else if (filteredApps.isEmpty()) {
-                        Text("没有找到匹配的应用", color = AppMuted, modifier = Modifier.padding(16.dp))
+                        Text(stringResource(R.string.no_matching_apps), color = AppMuted, modifier = Modifier.padding(16.dp))
                     } else {
                         LazyColumn(
                             modifier = Modifier
@@ -1846,7 +1859,7 @@ private fun ActivityPackagePicker(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { dialogVisible = false }) { Text("取消") }
+                TextButton(onClick = { dialogVisible = false }) { Text(stringResource(R.string.btn_cancel)) }
             }
         )
     }
@@ -1860,36 +1873,36 @@ private fun CustomActionEditor(
 ) {
     when (action) {
         ActionType.COMMON_FUNCTION -> {
-            ParameterCard("常用功能") {
-                Text("已选择：${custom.commonAction.title}", color = AppMuted)
+            ParameterCard(stringResource(R.string.title_common_actions)) {
+                Text(stringResource(R.string.selected_with_title, stringResource(custom.commonAction.titleRes)), color = AppMuted)
             }
         }
         ActionType.XIAOBU_SHORTCUT -> {
-            ParameterCard("小布快捷指令") {
+            ParameterCard(stringResource(R.string.title_xiaobu_shortcut)) {
                 OutlinedTextField(
                     value = custom.xiaobuShortcutId,
                     onValueChange = { onChange(custom.copy(xiaobuShortcutId = it)) },
-                    label = { Text("快捷指令 ID") },
+                    label = { Text(stringResource(R.string.field_shortcut_id)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 SettingSwitchRow(
-                    title = "显示执行结果 Toast",
+                    title = stringResource(R.string.show_execution_toast),
                     description = null,
                     checked = custom.shellToastEnabled
                 ) { onChange(custom.copy(shellToastEnabled = it)) }
             }
         }
         ActionType.CUSTOM_ACTIVITY -> {
-            ParameterCard("Activity 参数") {
+            ParameterCard(stringResource(R.string.title_activity_parameters)) {
                 ActivityPackagePicker(
                     currentPackage = custom.activityPackage,
                     onSelect = { onChange(custom.copy(activityPackage = it)) }
                 )
-                OutlinedTextField(custom.activityClass, { onChange(custom.copy(activityClass = it)) }, label = { Text("Activity 类名（可选，留空使用默认 Activity）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(custom.activityAction, { onChange(custom.copy(activityAction = it)) }, label = { Text("Intent Action（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(custom.activityClass, { onChange(custom.copy(activityClass = it)) }, label = { Text(stringResource(R.string.field_activity_class)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(custom.activityAction, { onChange(custom.copy(activityAction = it)) }, label = { Text(stringResource(R.string.field_intent_action)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 SettingSwitchRow(
-                    title = "以小窗模式运行",
+                    title = stringResource(R.string.launch_in_small_window),
                     description = null,
                     checked = custom.launchInSmallWindow
                 ) { onChange(custom.copy(launchInSmallWindow = it)) }
@@ -1906,27 +1919,27 @@ private fun CustomActionEditor(
             }
         }
         ActionType.CUSTOM_URL -> {
-            ParameterCard("Url Scheme 参数") {
+            ParameterCard(stringResource(R.string.title_url_scheme_parameters)) {
                 OutlinedTextField(
                     value = custom.urlScheme,
                     onValueChange = { onChange(custom.copy(urlScheme = it)) },
-                    label = { Text("Url Scheme") },
+                    label = { Text(stringResource(R.string.field_url_scheme)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
         ActionType.SHELL_COMMAND -> {
-            ParameterCard("Shell 参数") {
+            ParameterCard(stringResource(R.string.title_shell_parameters)) {
                 OutlinedTextField(
                     value = custom.shellCommand,
                     onValueChange = { onChange(custom.copy(shellCommand = it)) },
-                    label = { Text("Shell 指令") },
+                    label = { Text(stringResource(R.string.field_shell_command)) },
                     minLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
                 SettingSwitchRow(
-                    title = "显示执行结果 Toast",
+                    title = stringResource(R.string.show_execution_toast),
                     description = null,
                     checked = custom.shellToastEnabled
                 ) { onChange(custom.copy(shellToastEnabled = it)) }

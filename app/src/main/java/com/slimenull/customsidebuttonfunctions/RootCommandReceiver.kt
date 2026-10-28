@@ -11,7 +11,7 @@ class RootCommandReceiver : BroadcastReceiver() {
         val command = intent.getStringExtra(EXTRA_COMMAND)?.takeIf { it.isNotBlank() } ?: return
         val preferSu = intent.getBooleanExtra(EXTRA_PREFER_SU, false)
         if (intent.getBooleanExtra(EXTRA_SHOW_TOAST, true)) {
-            Toast.makeText(context.applicationContext, "已收到 Shell 广播", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context.applicationContext, context.getString(R.string.shell_broadcast_received), Toast.LENGTH_SHORT).show()
         }
         val pending = goAsync()
         Thread {

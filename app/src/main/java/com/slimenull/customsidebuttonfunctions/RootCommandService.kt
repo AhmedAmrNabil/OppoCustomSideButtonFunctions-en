@@ -30,11 +30,11 @@ class RootCommandService : Service() {
                 val success = ShizukuShellCommandExecutor.execute(this@RootCommandService, command, preferSu) ==
                     ShizukuShellCommandExecutor.Result.SUCCESS
                 if (!success) {
-                    if (showToast) showToast("Shell 指令执行失败")
+                    if (showToast) showToast(getString(R.string.shell_command_failed))
                 }
             } catch (error: Throwable) {
                 Log.e(TAG, "root command failed", error)
-                if (showToast) showToast("Shell 指令执行失败")
+                if (showToast) showToast(getString(R.string.shell_command_failed))
             } finally {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelfResult(startId)
@@ -55,12 +55,12 @@ class RootCommandService : Service() {
         val channelId = "root_command"
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(channelId, "Shell 指令", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(channelId, getString(R.string.shell_notification_channel), NotificationManager.IMPORTANCE_LOW)
             )
         }
         return Notification.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-            .setContentTitle("正在执行 Shell 指令")
+            .setContentTitle(getString(R.string.shell_notification_title))
             .setOngoing(true)
             .build()
     }
