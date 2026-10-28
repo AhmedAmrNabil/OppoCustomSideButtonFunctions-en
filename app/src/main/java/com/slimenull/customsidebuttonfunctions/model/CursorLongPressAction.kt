@@ -1,9 +1,14 @@
 package com.slimenull.customsidebuttonfunctions.model
 
-enum class CursorLongPressAction(val title: String) {
-    NONE("不执行任何操作"),
-    REPEAT("连续移动"),
-    EDGE("移动到首尾")
+import androidx.annotation.StringRes
+import com.slimenull.customsidebuttonfunctions.R
+
+enum class CursorLongPressAction(@get:StringRes val titleRes: Int, val defaultTitle: String) {
+    NONE(R.string.cursor_long_press_none, "不执行任何操作"),
+    REPEAT(R.string.cursor_long_press_repeat, "连续移动"),
+    EDGE(R.string.cursor_long_press_edge, "移动到首尾");
+
+    val title: String get() = defaultTitle
 }
 
 const val DEFAULT_CURSOR_LONG_PRESS_MS = 500L

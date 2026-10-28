@@ -1,5 +1,7 @@
 # 一加侧键功能
 
+**中文** | [English](README.en.md)
+
 通过 Xposed/LSPosed 为一加、OPPO 等设备的侧边快捷键配置操作。应用提供 Compose 设置界面，按键拦截与动作执行主要运行在 Android 系统框架进程中。包名为 `com.slimenull.customsidebuttonfunctions`。
 
 <div align="center">

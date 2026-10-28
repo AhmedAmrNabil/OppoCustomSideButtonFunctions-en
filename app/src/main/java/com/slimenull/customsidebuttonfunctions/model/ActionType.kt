@@ -1,21 +1,31 @@
 package com.slimenull.customsidebuttonfunctions.model
 
+import androidx.annotation.StringRes
+import com.slimenull.customsidebuttonfunctions.R
+
 /** Actions exposed to every gesture. KEEP enum names stable: they are persisted in SharedPreferences. */
-enum class ActionType(val title: String, val description: String) {
-    NONE("不执行操作", "禁用此手势"),
-    SHOW_RINGER("显示响铃 / 振动 / 静音状态", "显示当前的响铃模式"),
-    CYCLE_RINGER("切换响铃 / 振动 / 静音", "按响铃、振动、静音顺序循环"),
-    MEDIA_PREVIOUS("媒体切换上一首", "发送媒体上一首按键"),
-    MEDIA_NEXT("媒体切换下一首", "发送媒体下一首按键"),
-    MEDIA_PLAY_PAUSE("媒体暂停/播放", "发送媒体暂停/播放按键"),
-    TOGGLE_DND("开启或关闭免打扰", "在开启和关闭之间切换"),
-    CAMERA("打开相机", "启动系统默认相机"),
-    FLASHLIGHT("切换手电筒", "打开或关闭摄像头手电筒"),
-    RECORDING("开始 / 结束录音", "调用 ColorOS 系统录音入口"),
-    SCREENSHOT("系统截屏", "调用系统截屏服务"),
-    COMMON_FUNCTION("常用功能", "微信、支付宝和 ColorOS 快捷功能"),
-    XIAOBU_SHORTCUT("执行小布快捷指令", "通过小布快捷指令 ID 执行"),
-    CUSTOM_ACTIVITY("自定义 Activity", "启动指定应用的 Activity"),
-    CUSTOM_URL("自定义 Url Scheme", "通过系统解析器打开 Url"),
-    SHELL_COMMAND("执行 Shell 指令", "优先通过 Shizuku，失败后回退到 su")
+enum class ActionType(
+    @get:StringRes val titleRes: Int,
+    @get:StringRes val descriptionRes: Int,
+    val defaultTitle: String
+) {
+    NONE(R.string.action_none_title, R.string.action_none_desc, "不执行操作"),
+    SHOW_RINGER(R.string.action_show_ringer_title, R.string.action_show_ringer_desc, "显示响铃 / 振动 / 静音状态"),
+    CYCLE_RINGER(R.string.action_cycle_ringer_title, R.string.action_cycle_ringer_desc, "切换响铃 / 振动 / 静音"),
+    MEDIA_PREVIOUS(R.string.action_media_prev_title, R.string.action_media_prev_desc, "媒体切换上一首"),
+    MEDIA_NEXT(R.string.action_media_next_title, R.string.action_media_next_desc, "媒体切换下一首"),
+    MEDIA_PLAY_PAUSE(R.string.action_media_play_pause_title, R.string.action_media_play_pause_desc, "媒体暂停/播放"),
+    TOGGLE_DND(R.string.action_toggle_dnd_title, R.string.action_toggle_dnd_desc, "开启或关闭免打扰"),
+    CAMERA(R.string.action_camera_title, R.string.action_camera_desc, "打开相机"),
+    FLASHLIGHT(R.string.action_flashlight_title, R.string.action_flashlight_desc, "切换手电筒"),
+    RECORDING(R.string.action_recording_title, R.string.action_recording_desc, "开始 / 结束录音"),
+    SCREENSHOT(R.string.action_screenshot_title, R.string.action_screenshot_desc, "系统截屏"),
+    COMMON_FUNCTION(R.string.action_common_function_title, R.string.action_common_function_desc, "常用功能"),
+    XIAOBU_SHORTCUT(R.string.action_xiaobu_shortcut_title, R.string.action_xiaobu_shortcut_desc, "执行小布快捷指令"),
+    CUSTOM_ACTIVITY(R.string.action_custom_activity_title, R.string.action_custom_activity_desc, "自定义 Activity"),
+    CUSTOM_URL(R.string.action_custom_url_title, R.string.action_custom_url_desc, "自定义 Url Scheme"),
+    SHELL_COMMAND(R.string.action_shell_command_title, R.string.action_shell_command_desc, "执行 Shell 指令");
+
+    val title: String get() = defaultTitle
+    val description: String get() = defaultTitle
 }

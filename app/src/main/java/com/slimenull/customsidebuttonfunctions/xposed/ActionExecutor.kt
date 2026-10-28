@@ -238,7 +238,7 @@ internal class ActionExecutor {
         // Keep this framework path for ROMs without the Oplus service.
         val notification = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !notification.isNotificationPolicyAccessGranted) {
-            showToast(context, "请先授予免打扰访问权限")
+            showToast(context, "Please grant Do Not Disturb access permission first")
             return
         }
         notification.setInterruptionFilter(
@@ -340,8 +340,9 @@ internal class ActionExecutor {
     }.onXposedFailure("send ring-mode seedling command").getOrDefault(false)
 
     private fun openCamera(context: Context) {
+        // Open the camera itself, including over the lock screen, rather than request a capture result.
         context.startActivity(
-            Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)
+            Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA_SECURE)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
@@ -384,7 +385,7 @@ internal class ActionExecutor {
 
     private fun toggleTorchThroughSystemUi(context: Context): Boolean {
         if (torchEnabled) {
-            // 当已经启用的时候, 就是通过系统 UI 切换了
+            // When already enabled, toggle through system UI
             return false
         }
 
